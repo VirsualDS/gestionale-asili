@@ -33,6 +33,13 @@ async function getChildDetail(structureId: string, childId: string) {
         orderBy: [{ createdAt: "desc" }],
         take: 10,
       },
+      _count: {
+        select: {
+          guardians: true,
+          authorizedPickupPeople: true,
+          paymentRequests: true,
+        },
+      },
     },
   });
 }
@@ -97,6 +104,39 @@ async function addGuardian(formData: FormData) {
   redirect(`/children/${childId}?success=guardian-created`);
 }
 
+async function deleteGuardian(formData: FormData) {
+  "use server";
+
+  const session = await requireSession();
+
+  const childId = String(formData.get("childId") || "").trim();
+  const guardianId = String(formData.get("guardianId") || "").trim();
+
+  if (!childId || !guardianId) {
+    redirect(`/children/${childId}?error=guardian-delete-invalid`);
+  }
+
+  const guardian = await prisma.guardian.findFirst({
+    where: {
+      id: guardianId,
+      childId,
+      structureId: session.structureId,
+    },
+  });
+
+  if (!guardian) {
+    redirect(`/children/${childId}?error=guardian-not-found`);
+  }
+
+  await prisma.guardian.delete({
+    where: {
+      id: guardian.id,
+    },
+  });
+
+  redirect(`/children/${childId}?success=guardian-deleted`);
+}
+
 async function addAuthorizedPickupPerson(formData: FormData) {
   "use server";
 
@@ -136,6 +176,95 @@ async function addAuthorizedPickupPerson(formData: FormData) {
   redirect(`/children/${childId}?success=pickup-created`);
 }
 
+async function deleteAuthorizedPickupPerson(formData: FormData) {
+  "use server";
+
+  const session = await requireSession();
+
+  const childId = String(formData.get("childId") || "").trim();
+  const personId = String(formData.get("personId") || "").trim();
+
+  if (!childId || !personId) {
+    redirect(`/children/${childId}?error=pickup-delete-invalid`);
+  }
+
+  const person = await prisma.authorizedPickupPerson.findFirst({
+    where: {
+      id: personId,
+      childId,
+      child: {
+        structureId: session.structureId,
+      },
+    },
+  });
+
+  if (!person) {
+    redirect(`/children/${childId}?error=pickup-not-found`);
+  }
+
+  await prisma.authorizedPickupPerson.delete({
+    where: {
+      id: person.id,
+    },
+  });
+
+  redirect(`/children/${childId}?success=pickup-deleted`);
+}
+
+async function deleteChild(formData: FormData) {
+  "use server";
+
+  const session = await requireSession();
+  const childId = String(formData.get("childId") || "").trim();
+
+  if (!childId) {
+    redirect("/children?error=invalid-child");
+  }
+
+  const child = await prisma.child.findFirst({
+    where: {
+      id: childId,
+      structureId: session.structureId,
+    },
+    include: {
+      _count: {
+        select: {
+          paymentRequests: true,
+        },
+      },
+    },
+  });
+
+  if (!child) {
+    redirect("/children?error=not-found");
+  }
+
+  if (child._count.paymentRequests > 0) {
+    redirect(`/children/${childId}?error=child-has-payments`);
+  }
+
+  await prisma.guardian.deleteMany({
+    where: {
+      childId,
+      structureId: session.structureId,
+    },
+  });
+
+  await prisma.authorizedPickupPerson.deleteMany({
+    where: {
+      childId,
+    },
+  });
+
+  await prisma.child.delete({
+    where: {
+      id: childId,
+    },
+  });
+
+  redirect("/children?success=deleted");
+}
+
 export default async function ChildDetailPage({
   params,
   searchParams,
@@ -157,14 +286,28 @@ export default async function ChildDetailPage({
     successMessage = "Bambino creato correttamente.";
   } else if (qs?.success === "guardian-created") {
     successMessage = "Tutore aggiunto correttamente.";
+  } else if (qs?.success === "guardian-deleted") {
+    successMessage = "Tutore eliminato correttamente.";
   } else if (qs?.success === "pickup-created") {
     successMessage = "Persona autorizzata aggiunta correttamente.";
+  } else if (qs?.success === "pickup-deleted") {
+    successMessage = "Persona autorizzata eliminata correttamente.";
   }
 
   if (qs?.error === "guardian-missing") {
     errorMessage = "Per aggiungere un tutore serve almeno il nome.";
   } else if (qs?.error === "pickup-missing") {
     errorMessage = "Per aggiungere una persona autorizzata serve almeno il nome.";
+  } else if (qs?.error === "guardian-delete-invalid") {
+    errorMessage = "Richiesta eliminazione tutore non valida.";
+  } else if (qs?.error === "guardian-not-found") {
+    errorMessage = "Tutore non trovato.";
+  } else if (qs?.error === "pickup-delete-invalid") {
+    errorMessage = "Richiesta eliminazione autorizzato non valida.";
+  } else if (qs?.error === "pickup-not-found") {
+    errorMessage = "Persona autorizzata non trovata.";
+  } else if (qs?.error === "child-has-payments") {
+    errorMessage = "Non puoi eliminare il bambino perché ha richieste di pagamento collegate.";
   }
 
   return (
@@ -184,6 +327,25 @@ export default async function ChildDetailPage({
           {child.firstName} {child.lastName}
         </h1>
         <p className="mt-2 text-neutral-400">Classe: {child.classRoom.name}</p>
+
+        <div className="mt-6 flex flex-wrap gap-3">
+          <Link
+            href={`/children/${child.id}/edit`}
+            className="rounded-xl border border-neutral-700 px-4 py-3 text-sm font-medium text-neutral-200 transition hover:bg-neutral-800"
+          >
+            Modifica bambino
+          </Link>
+
+          <form action={deleteChild}>
+            <input type="hidden" name="childId" value={child.id} />
+            <button
+              type="submit"
+              className="rounded-xl border border-red-900 bg-red-950/40 px-4 py-3 text-sm font-medium text-red-300 transition hover:bg-red-950/70"
+            >
+              Elimina bambino
+            </button>
+          </form>
+        </div>
       </div>
 
       {successMessage && (
@@ -481,11 +643,24 @@ export default async function ChildDetailPage({
                       </p>
                     </div>
 
-                    {guardian.isPrimaryContact && (
-                      <span className="rounded-full border border-emerald-800 bg-emerald-950/40 px-3 py-1 text-xs font-medium text-emerald-300">
-                        Principale
-                      </span>
-                    )}
+                    <div className="flex flex-col items-end gap-2">
+                      {guardian.isPrimaryContact && (
+                        <span className="rounded-full border border-emerald-800 bg-emerald-950/40 px-3 py-1 text-xs font-medium text-emerald-300">
+                          Principale
+                        </span>
+                      )}
+
+                      <form action={deleteGuardian}>
+                        <input type="hidden" name="childId" value={child.id} />
+                        <input type="hidden" name="guardianId" value={guardian.id} />
+                        <button
+                          type="submit"
+                          className="rounded-lg border border-red-900 bg-red-950/40 px-3 py-2 text-xs font-medium text-red-300 transition hover:bg-red-950/70"
+                        >
+                          Elimina
+                        </button>
+                      </form>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -506,15 +681,30 @@ export default async function ChildDetailPage({
                     key={person.id}
                     className="rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-3"
                   >
-                    <p className="font-medium text-white">
-                      {person.firstName} {person.lastName || ""}
-                    </p>
-                    <p className="mt-1 text-sm text-neutral-400">
-                      {person.phone || "Telefono non presente"}
-                    </p>
-                    <p className="mt-1 text-sm text-neutral-500">
-                      {person.note || "Nessuna nota"}
-                    </p>
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <p className="font-medium text-white">
+                          {person.firstName} {person.lastName || ""}
+                        </p>
+                        <p className="mt-1 text-sm text-neutral-400">
+                          {person.phone || "Telefono non presente"}
+                        </p>
+                        <p className="mt-1 text-sm text-neutral-500">
+                          {person.note || "Nessuna nota"}
+                        </p>
+                      </div>
+
+                      <form action={deleteAuthorizedPickupPerson}>
+                        <input type="hidden" name="childId" value={child.id} />
+                        <input type="hidden" name="personId" value={person.id} />
+                        <button
+                          type="submit"
+                          className="rounded-lg border border-red-900 bg-red-950/40 px-3 py-2 text-xs font-medium text-red-300 transition hover:bg-red-950/70"
+                        >
+                          Elimina
+                        </button>
+                      </form>
+                    </div>
                   </div>
                 )
               )}

@@ -40,6 +40,47 @@ async function createClass(formData: FormData) {
   redirect("/classes?success=created");
 }
 
+async function deleteClass(formData: FormData) {
+  "use server";
+
+  const session = await requireSession();
+  const classId = String(formData.get("classId") || "").trim();
+
+  if (!classId) {
+    redirect("/classes?error=invalid-class");
+  }
+
+  const classRoom = await prisma.classRoom.findFirst({
+    where: {
+      id: classId,
+      structureId: session.structureId,
+    },
+    include: {
+      _count: {
+        select: {
+          children: true,
+        },
+      },
+    },
+  });
+
+  if (!classRoom) {
+    redirect("/classes?error=not-found");
+  }
+
+  if (classRoom._count.children > 0) {
+    redirect("/classes?error=class-has-children");
+  }
+
+  await prisma.classRoom.delete({
+    where: {
+      id: classRoom.id,
+    },
+  });
+
+  redirect("/classes?success=deleted");
+}
+
 async function getClasses(structureId: string) {
   return prisma.classRoom.findMany({
     where: {
@@ -77,10 +118,22 @@ export default async function ClassesPage({ searchParams }: ClassesPageProps) {
       ? "Il nome della classe è obbligatorio."
       : params?.error === "duplicate"
       ? "Esiste già una classe con questo nome."
+      : params?.error === "invalid-class"
+      ? "Classe non valida."
+      : params?.error === "not-found"
+      ? "Classe non trovata."
+      : params?.error === "class-has-children"
+      ? "Non puoi eliminare una classe che contiene bambini."
       : null;
 
   const successMessage =
-    params?.success === "created" ? "Classe creata correttamente." : null;
+    params?.success === "created"
+      ? "Classe creata correttamente."
+      : params?.success === "deleted"
+      ? "Classe eliminata correttamente."
+      : params?.success === "updated"
+      ? "Classe aggiornata correttamente."
+      : null;
 
   return (
     <div>
@@ -88,9 +141,21 @@ export default async function ClassesPage({ searchParams }: ClassesPageProps) {
         <p className="text-sm uppercase tracking-[0.2em] text-neutral-500">Classi</p>
         <h1 className="mt-2 text-4xl font-bold">Gestione classi</h1>
         <p className="mt-2 text-neutral-400">
-          Crea e consulta le classi della tua struttura.
+          Crea, consulta, modifica ed elimina le classi della tua struttura.
         </p>
       </header>
+
+      {errorMessage && (
+        <div className="mb-6 rounded-xl border border-red-900 bg-red-950/40 px-4 py-3 text-sm text-red-300">
+          {errorMessage}
+        </div>
+      )}
+
+      {successMessage && (
+        <div className="mb-6 rounded-xl border border-emerald-900 bg-emerald-950/40 px-4 py-3 text-sm text-emerald-300">
+          {successMessage}
+        </div>
+      )}
 
       <section className="grid gap-6 lg:grid-cols-[420px_minmax(0,1fr)]">
         <div className="rounded-2xl border border-neutral-800 bg-neutral-900 p-6">
@@ -98,18 +163,6 @@ export default async function ClassesPage({ searchParams }: ClassesPageProps) {
           <p className="mt-2 text-sm text-neutral-400">
             Inserisci nome e descrizione opzionale della classe.
           </p>
-
-          {errorMessage && (
-            <div className="mt-4 rounded-xl border border-red-900 bg-red-950/40 px-4 py-3 text-sm text-red-300">
-              {errorMessage}
-            </div>
-          )}
-
-          {successMessage && (
-            <div className="mt-4 rounded-xl border border-emerald-900 bg-emerald-950/40 px-4 py-3 text-sm text-emerald-300">
-              {successMessage}
-            </div>
-          )}
 
           <form action={createClass} className="mt-6 space-y-5">
             <div>
@@ -154,7 +207,7 @@ export default async function ClassesPage({ searchParams }: ClassesPageProps) {
         <div className="rounded-2xl border border-neutral-800 bg-neutral-900 p-6">
           <div className="mb-6 flex items-center justify-between">
             <div>
-              <h2 className="text-xl font-semibold">Classi attive</h2>
+              <h2 className="text-xl font-semibold">Classi presenti</h2>
               <p className="mt-2 text-sm text-neutral-400">
                 Totale classi presenti: {classes.length}
               </p>
@@ -168,18 +221,22 @@ export default async function ClassesPage({ searchParams }: ClassesPageProps) {
           ) : (
             <div className="space-y-3">
               {classes.map((classRoom: ClassRoomListItem) => (
-                <Link
+                <div
                   key={classRoom.id}
-                  href={`/classes/${classRoom.id}`}
-                  className="block rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-4 transition hover:border-neutral-600"
+                  className="rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-4"
                 >
-                  <div className="flex items-center justify-between gap-4">
-                    <div>
-                      <p className="font-medium text-white">{classRoom.name}</p>
-                      <p className="mt-1 text-sm text-neutral-500">
-                        {classRoom.description || "Nessuna descrizione"}
-                      </p>
-                    </div>
+                  <div className="flex items-start justify-between gap-4">
+                    <Link href={`/classes/${classRoom.id}`} className="min-w-0 flex-1">
+                      <div>
+                        <p className="font-medium text-white">{classRoom.name}</p>
+                        <p className="mt-1 text-sm text-neutral-500">
+                          {classRoom.description || "Nessuna descrizione"}
+                        </p>
+                        <p className="mt-1 text-sm text-neutral-500">
+                          Stato: {classRoom.isActive ? "Attiva" : "Disattivata"}
+                        </p>
+                      </div>
+                    </Link>
 
                     <div className="text-right">
                       <p className="text-sm text-neutral-400">Bambini</p>
@@ -188,7 +245,33 @@ export default async function ClassesPage({ searchParams }: ClassesPageProps) {
                       </p>
                     </div>
                   </div>
-                </Link>
+
+                  <div className="mt-4 flex flex-wrap gap-3">
+                    <Link
+                      href={`/classes/${classRoom.id}`}
+                      className="rounded-lg border border-neutral-700 px-3 py-2 text-sm text-neutral-200 transition hover:bg-neutral-800"
+                    >
+                      Apri dettaglio
+                    </Link>
+
+                    <Link
+                      href={`/classes/${classRoom.id}/edit`}
+                      className="rounded-lg border border-neutral-700 px-3 py-2 text-sm text-neutral-200 transition hover:bg-neutral-800"
+                    >
+                      Modifica
+                    </Link>
+
+                    <form action={deleteClass}>
+                      <input type="hidden" name="classId" value={classRoom.id} />
+                      <button
+                        type="submit"
+                        className="rounded-lg border border-red-900 bg-red-950/40 px-3 py-2 text-sm text-red-300 transition hover:bg-red-950/70"
+                      >
+                        Elimina
+                      </button>
+                    </form>
+                  </div>
+                </div>
               ))}
             </div>
           )}

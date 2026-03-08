@@ -19,6 +19,7 @@ async function getClassDetail(structureId: string, classId: string) {
             select: {
               guardians: true,
               paymentRequests: true,
+              authorizedPickupPeople: true,
             },
           },
         },
@@ -68,6 +69,15 @@ export default async function ClassDetailPage({ params }: ClassDetailPageProps) 
         <p className="mt-2 text-neutral-400">
           {classRoom.description || "Nessuna descrizione disponibile."}
         </p>
+
+        <div className="mt-6 flex flex-wrap gap-3">
+          <Link
+            href={`/classes/${classRoom.id}/edit`}
+            className="rounded-xl border border-neutral-700 px-4 py-3 text-sm font-medium text-neutral-200 transition hover:bg-neutral-800"
+          >
+            Modifica classe
+          </Link>
+        </div>
       </div>
 
       <section className="grid gap-4 md:grid-cols-3 mb-8">
@@ -94,9 +104,16 @@ export default async function ClassDetailPage({ params }: ClassDetailPageProps) 
           <div>
             <h2 className="text-xl font-semibold">Bambini della classe</h2>
             <p className="mt-2 text-sm text-neutral-400">
-              In questa fase mostriamo l’elenco collegato al database.
+              Elenco completo dei bambini collegati a questa classe.
             </p>
           </div>
+
+          <Link
+            href="/children/new"
+            className="rounded-xl bg-white px-4 py-3 text-sm font-semibold text-black transition hover:bg-neutral-200"
+          >
+            Nuovo bambino
+          </Link>
         </div>
 
         {classRoom.children.length === 0 ? (
@@ -111,19 +128,38 @@ export default async function ClassDetailPage({ params }: ClassDetailPageProps) 
                 className="rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-4"
               >
                 <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <p className="font-medium text-white">
-                      {child.firstName} {child.lastName}
-                    </p>
-                    <p className="mt-1 text-sm text-neutral-500">
-                      Stato: {child.status}
-                    </p>
-                  </div>
+                  <Link href={`/children/${child.id}`} className="min-w-0 flex-1">
+                    <div>
+                      <p className="font-medium text-white">
+                        {child.firstName} {child.lastName}
+                      </p>
+                      <p className="mt-1 text-sm text-neutral-500">
+                        Stato: {child.status}
+                      </p>
+                    </div>
+                  </Link>
 
                   <div className="text-right text-sm text-neutral-400">
                     <p>Tutori: {child._count.guardians}</p>
+                    <p>Autorizzati: {child._count.authorizedPickupPeople}</p>
                     <p>Richieste: {child._count.paymentRequests}</p>
                   </div>
+                </div>
+
+                <div className="mt-4 flex flex-wrap gap-3">
+                  <Link
+                    href={`/children/${child.id}`}
+                    className="rounded-lg border border-neutral-700 px-3 py-2 text-sm text-neutral-200 transition hover:bg-neutral-800"
+                  >
+                    Apri scheda
+                  </Link>
+
+                  <Link
+                    href={`/children/${child.id}/edit`}
+                    className="rounded-lg border border-neutral-700 px-3 py-2 text-sm text-neutral-200 transition hover:bg-neutral-800"
+                  >
+                    Modifica bambino
+                  </Link>
                 </div>
               </div>
             ))}
