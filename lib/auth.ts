@@ -36,6 +36,32 @@ function getAuthSecret() {
   return new TextEncoder().encode(secret);
 }
 
+function isValidSessionPayload(payload: unknown): payload is SessionPayload {
+  if (!payload || typeof payload !== "object") {
+    return false;
+  }
+
+  const p = payload as Record<string, unknown>;
+
+  if (
+    typeof p.userId !== "string" ||
+    typeof p.email !== "string" ||
+    typeof p.role !== "string"
+  ) {
+    return false;
+  }
+
+  if (p.userType === "platform") {
+    return p.structureId === null;
+  }
+
+  if (p.userType === "structure") {
+    return typeof p.structureId === "string" && p.structureId.length > 0;
+  }
+
+  return false;
+}
+
 async function signSessionToken(payload: SessionPayload) {
   const secret = getAuthSecret();
 
@@ -46,10 +72,20 @@ async function signSessionToken(payload: SessionPayload) {
     .sign(secret);
 }
 
-async function verifySessionToken(token: string): Promise<SessionPayload> {
+async function verifySessionToken(token: string): Promise<SessionPayload | null> {
   const secret = getAuthSecret();
-  const { payload } = await jwtVerify(token, secret);
-  return payload as unknown as SessionPayload;
+
+  try {
+    const { payload } = await jwtVerify(token, secret);
+
+    if (!isValidSessionPayload(payload)) {
+      return null;
+    }
+
+    return payload;
+  } catch {
+    return null;
+  }
 }
 
 function getDefaultRedirectPath(session: SessionPayload) {
@@ -151,11 +187,14 @@ export async function getSession(): Promise<SessionPayload | null> {
     return null;
   }
 
-  try {
-    return await verifySessionToken(token);
-  } catch {
+  const session = await verifySessionToken(token);
+
+  if (!session) {
+    cookieStore.delete(SESSION_COOKIE_NAME);
     return null;
   }
+
+  return session;
 }
 
 export async function requireSession(): Promise<SessionPayload> {
@@ -171,7 +210,7 @@ export async function requireSession(): Promise<SessionPayload> {
 export async function requireStructureSession(): Promise<StructureSessionPayload> {
   const session = await requireSession();
 
-  if (session.userType !== "structure") {
+  if (session.userType === "platform") {
     redirect("/platform/dashboard");
   }
 
@@ -181,7 +220,7 @@ export async function requireStructureSession(): Promise<StructureSessionPayload
 export async function requirePlatformSession(): Promise<PlatformSessionPayload> {
   const session = await requireSession();
 
-  if (session.userType !== "platform") {
+  if (session.userType === "structure") {
     redirect("/dashboard");
   }
 
