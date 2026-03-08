@@ -72,6 +72,8 @@ type NewChildPageProps = {
   }>;
 };
 
+type ClassRoomOption = Awaited<ReturnType<typeof getClasses>>[number];
+
 export default async function NewChildPage({ searchParams }: NewChildPageProps) {
   const session = await requireSession();
   const classes = await getClasses(session.structureId);
@@ -139,7 +141,7 @@ export default async function NewChildPage({ searchParams }: NewChildPageProps) 
               className="w-full rounded-xl border border-neutral-700 bg-neutral-950 px-4 py-3 text-white outline-none transition focus:border-neutral-500"
             >
               <option value="">Seleziona una classe</option>
-              {classes.map((classRoom) => (
+              {classes.map((classRoom: ClassRoomOption) => (
                 <option key={classRoom.id} value={classRoom.id}>
                   {classRoom.name}
                 </option>
