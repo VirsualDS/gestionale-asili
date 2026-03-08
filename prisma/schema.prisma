@@ -1,0 +1,179 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model PlatformUser {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  role         String   @default("superadmin")
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Structure {
+  id            String          @id @default(cuid())
+  name          String
+  email         String?         @unique
+  phone         String?
+  address       String?
+  logoUrl       String?
+  accountStatus String          @default("trial") // trial, active, suspended, cancelled
+  isActive      Boolean         @default(true)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  users           StructureUser[]
+  classes         ClassRoom[]
+  children        Child[]
+  guardians       Guardian[]
+  paymentRequests PaymentRequest[]
+  payments        Payment[]
+}
+
+model StructureUser {
+  id           String   @id @default(cuid())
+  structureId  String
+  name         String
+  email        String   @unique
+  passwordHash String
+  role         String   @default("admin") // admin, staff
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  structure Structure @relation(fields: [structureId], references: [id], onDelete: Cascade)
+
+  @@index([structureId])
+}
+
+model ClassRoom {
+  id          String   @id @default(cuid())
+  structureId String
+  name        String
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  structure Structure @relation(fields: [structureId], references: [id], onDelete: Cascade)
+  children  Child[]
+
+  @@index([structureId])
+  @@unique([structureId, name])
+}
+
+model Child {
+  id                 String   @id @default(cuid())
+  structureId        String
+  classRoomId        String
+  firstName          String
+  lastName           String
+  birthDate          DateTime?
+  residence          String?
+  monthlyFee         Decimal? @db.Decimal(10, 2)
+  attendanceSchedule String?  // es. "08:00-14:00"
+  allergiesNotes     String?
+  generalNotes       String?
+  status             String   @default("active") // active, suspended, withdrawn
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  structure              Structure               @relation(fields: [structureId], references: [id], onDelete: Cascade)
+  classRoom              ClassRoom               @relation(fields: [classRoomId], references: [id], onDelete: Restrict)
+  guardians              Guardian[]
+  authorizedPickupPeople AuthorizedPickupPerson[]
+  paymentRequests        PaymentRequest[]
+
+  @@index([structureId])
+  @@index([classRoomId])
+  @@index([status])
+}
+
+model Guardian {
+  id               String   @id @default(cuid())
+  structureId      String
+  childId          String
+  firstName        String
+  lastName         String?
+  phone            String?
+  email            String?
+  relationship     String?  // padre, madre, tutore, nonno, ecc.
+  isPrimaryContact Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  structure Structure @relation(fields: [structureId], references: [id], onDelete: Cascade)
+  child     Child     @relation(fields: [childId], references: [id], onDelete: Cascade)
+
+  @@index([structureId])
+  @@index([childId])
+}
+
+model AuthorizedPickupPerson {
+  id          String   @id @default(cuid())
+  childId     String
+  firstName   String
+  lastName    String?
+  phone       String?
+  note        String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  child Child @relation(fields: [childId], references: [id], onDelete: Cascade)
+
+  @@index([childId])
+}
+
+model PaymentRequest {
+  id             String   @id @default(cuid())
+  structureId     String
+  childId         String
+  type            String   // monthly_fee, extra
+  title           String
+  description     String?
+  amount          Decimal  @db.Decimal(10, 2)
+  dueDate         DateTime?
+  status          String   @default("pending") // pending, paid, overdue, cancelled
+  publicToken     String   @unique @default(cuid())
+  publicLink      String?
+  groupKey        String?  // per collegare richieste nate da invio collettivo
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  structure Structure @relation(fields: [structureId], references: [id], onDelete: Cascade)
+  child     Child     @relation(fields: [childId], references: [id], onDelete: Cascade)
+  payments  Payment[]
+
+  @@index([structureId])
+  @@index([childId])
+  @@index([status])
+  @@index([type])
+  @@index([groupKey])
+}
+
+model Payment {
+  id               String   @id @default(cuid())
+  structureId      String
+  paymentRequestId String
+  amount           Decimal  @db.Decimal(10, 2)
+  status           String   @default("pending") // pending, paid, failed, refunded
+  provider         String?  // stripe, manual, ecc.
+  providerRef      String?
+  paidAt           DateTime?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  structure      Structure      @relation(fields: [structureId], references: [id], onDelete: Cascade)
+  paymentRequest PaymentRequest @relation(fields: [paymentRequestId], references: [id], onDelete: Cascade)
+
+  @@index([structureId])
+  @@index([paymentRequestId])
+  @@index([status])
+}
