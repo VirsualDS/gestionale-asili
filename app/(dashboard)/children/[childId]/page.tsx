@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { requireSession } from "@/lib/auth";
+import { requireStructureSession } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -52,7 +52,7 @@ type PaymentRequestItem = ChildDetailData["paymentRequests"][number];
 async function addGuardian(formData: FormData) {
   "use server";
 
-  const session = await requireSession();
+  const session = await requireStructureSession();
 
   const childId = String(formData.get("childId") || "").trim();
   const firstName = String(formData.get("firstName") || "").trim();
@@ -107,7 +107,7 @@ async function addGuardian(formData: FormData) {
 async function deleteGuardian(formData: FormData) {
   "use server";
 
-  const session = await requireSession();
+  const session = await requireStructureSession();
 
   const childId = String(formData.get("childId") || "").trim();
   const guardianId = String(formData.get("guardianId") || "").trim();
@@ -140,7 +140,7 @@ async function deleteGuardian(formData: FormData) {
 async function addAuthorizedPickupPerson(formData: FormData) {
   "use server";
 
-  const session = await requireSession();
+  const session = await requireStructureSession();
 
   const childId = String(formData.get("childId") || "").trim();
   const firstName = String(formData.get("firstName") || "").trim();
@@ -179,7 +179,7 @@ async function addAuthorizedPickupPerson(formData: FormData) {
 async function deleteAuthorizedPickupPerson(formData: FormData) {
   "use server";
 
-  const session = await requireSession();
+  const session = await requireStructureSession();
 
   const childId = String(formData.get("childId") || "").trim();
   const personId = String(formData.get("personId") || "").trim();
@@ -214,7 +214,7 @@ async function deleteAuthorizedPickupPerson(formData: FormData) {
 async function deleteChild(formData: FormData) {
   "use server";
 
-  const session = await requireSession();
+  const session = await requireStructureSession();
   const childId = String(formData.get("childId") || "").trim();
 
   if (!childId) {
@@ -269,7 +269,7 @@ export default async function ChildDetailPage({
   params,
   searchParams,
 }: ChildDetailPageProps) {
-  const session = await requireSession();
+  const session = await requireStructureSession();
   const { childId } = await params;
   const qs = searchParams ? await searchParams : undefined;
 

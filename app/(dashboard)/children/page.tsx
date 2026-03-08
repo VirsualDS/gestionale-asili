@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { requireSession } from "@/lib/auth";
+import { requireStructureSession } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -55,7 +55,7 @@ async function getChildren(structureId: string, query?: string) {
 async function deleteChild(formData: FormData) {
   "use server";
 
-  const session = await requireSession();
+  const session = await requireStructureSession();
   const childId = String(formData.get("childId") || "").trim();
 
   if (!childId) {
@@ -103,7 +103,7 @@ async function deleteChild(formData: FormData) {
 type ChildListItem = Awaited<ReturnType<typeof getChildren>>[number];
 
 export default async function ChildrenPage({ searchParams }: ChildrenPageProps) {
-  const session = await requireSession();
+  const session = await requireStructureSession();
   const params = searchParams ? await searchParams : undefined;
   const query = params?.q ?? "";
 

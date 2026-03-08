@@ -1,14 +1,14 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { requireSession } from "@/lib/auth";
+import { requireStructureSession } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 async function createClass(formData: FormData) {
   "use server";
 
-  const session = await requireSession();
+  const session = await requireStructureSession();
 
   const name = String(formData.get("name") || "").trim();
   const description = String(formData.get("description") || "").trim();
@@ -43,7 +43,7 @@ async function createClass(formData: FormData) {
 async function deleteClass(formData: FormData) {
   "use server";
 
-  const session = await requireSession();
+  const session = await requireStructureSession();
   const classId = String(formData.get("classId") || "").trim();
 
   if (!classId) {
@@ -109,7 +109,7 @@ type ClassesPageProps = {
 type ClassRoomListItem = Awaited<ReturnType<typeof getClasses>>[number];
 
 export default async function ClassesPage({ searchParams }: ClassesPageProps) {
-  const session = await requireSession();
+  const session = await requireStructureSession();
   const classes = await getClasses(session.structureId);
   const params = searchParams ? await searchParams : undefined;
 

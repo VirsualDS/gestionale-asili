@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { requireSession } from "@/lib/auth";
+import { requireStructureSession } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -43,7 +43,7 @@ type ClassRoomDetail = NonNullable<Awaited<ReturnType<typeof getClassDetail>>>;
 type ClassChildItem = ClassRoomDetail["children"][number];
 
 export default async function ClassDetailPage({ params }: ClassDetailPageProps) {
-  const session = await requireSession();
+  const session = await requireStructureSession();
   const { classId } = await params;
 
   const classRoom = await getClassDetail(session.structureId, classId);

@@ -8,12 +8,23 @@ import { prisma } from "@/lib/prisma";
 const SESSION_COOKIE_NAME = "gestionale_asili_session";
 const SESSION_DURATION_DAYS = 7;
 
-type SessionPayload = {
+type BaseSessionPayload = {
   userId: string;
-  structureId: string;
   email: string;
   role: string;
 };
+
+type PlatformSessionPayload = BaseSessionPayload & {
+  userType: "platform";
+  structureId: null;
+};
+
+type StructureSessionPayload = BaseSessionPayload & {
+  userType: "structure";
+  structureId: string;
+};
+
+type SessionPayload = PlatformSessionPayload | StructureSessionPayload;
 
 function getAuthSecret() {
   const secret = process.env.AUTH_SECRET;
@@ -28,25 +39,62 @@ function getAuthSecret() {
 async function signSessionToken(payload: SessionPayload) {
   const secret = getAuthSecret();
 
-  return await new SignJWT(payload)
+  return new SignJWT(payload)
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime(`${SESSION_DURATION_DAYS}d`)
     .sign(secret);
 }
 
-async function verifySessionToken(token: string) {
+async function verifySessionToken(token: string): Promise<SessionPayload> {
   const secret = getAuthSecret();
-
   const { payload } = await jwtVerify(token, secret);
-
   return payload as unknown as SessionPayload;
+}
+
+function getDefaultRedirectPath(session: SessionPayload) {
+  return session.userType === "platform" ? "/platform/dashboard" : "/dashboard";
 }
 
 export async function loginWithCredentials(email: string, password: string) {
   const normalizedEmail = email.trim().toLowerCase();
 
-  const user = await prisma.structureUser.findUnique({
+  const platformUser = await prisma.platformUser.findUnique({
+    where: {
+      email: normalizedEmail,
+    },
+  });
+
+  if (platformUser && platformUser.isActive) {
+    const passwordIsValid = await bcrypt.compare(password, platformUser.passwordHash);
+
+    if (passwordIsValid) {
+      const token = await signSessionToken({
+        userId: platformUser.id,
+        email: platformUser.email,
+        role: platformUser.role,
+        userType: "platform",
+        structureId: null,
+      });
+
+      const cookieStore = await cookies();
+
+      cookieStore.set(SESSION_COOKIE_NAME, token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        path: "/",
+        maxAge: SESSION_DURATION_DAYS * 24 * 60 * 60,
+      });
+
+      return {
+        success: true as const,
+        redirectTo: "/platform/dashboard",
+      };
+    }
+  }
+
+  const structureUser = await prisma.structureUser.findUnique({
     where: {
       email: normalizedEmail,
     },
@@ -55,34 +103,28 @@ export async function loginWithCredentials(email: string, password: string) {
     },
   });
 
-  if (!user || !user.isActive || !user.structure.isActive) {
+  if (!structureUser || !structureUser.isActive || !structureUser.structure.isActive) {
     return {
-      success: false,
+      success: false as const,
       error: "Credenziali non valide.",
     };
   }
 
-  if (user.structure.accountStatus !== "active" && user.structure.accountStatus !== "trial") {
-    return {
-      success: false,
-      error: "Account struttura non attivo.",
-    };
-  }
-
-  const passwordIsValid = await bcrypt.compare(password, user.passwordHash);
+  const passwordIsValid = await bcrypt.compare(password, structureUser.passwordHash);
 
   if (!passwordIsValid) {
     return {
-      success: false,
+      success: false as const,
       error: "Credenziali non valide.",
     };
   }
 
   const token = await signSessionToken({
-    userId: user.id,
-    structureId: user.structureId,
-    email: user.email,
-    role: user.role,
+    userId: structureUser.id,
+    email: structureUser.email,
+    role: structureUser.role,
+    userType: "structure",
+    structureId: structureUser.structureId,
   });
 
   const cookieStore = await cookies();
@@ -96,11 +138,12 @@ export async function loginWithCredentials(email: string, password: string) {
   });
 
   return {
-    success: true,
+    success: true as const,
+    redirectTo: "/dashboard",
   };
 }
 
-export async function getSession() {
+export async function getSession(): Promise<SessionPayload | null> {
   const cookieStore = await cookies();
   const token = cookieStore.get(SESSION_COOKIE_NAME)?.value;
 
@@ -109,15 +152,13 @@ export async function getSession() {
   }
 
   try {
-    const payload = await verifySessionToken(token);
-
-    return payload;
+    return await verifySessionToken(token);
   } catch {
     return null;
   }
 }
 
-export async function requireSession() {
+export async function requireSession(): Promise<SessionPayload> {
   const session = await getSession();
 
   if (!session) {
@@ -125,6 +166,36 @@ export async function requireSession() {
   }
 
   return session;
+}
+
+export async function requireStructureSession(): Promise<StructureSessionPayload> {
+  const session = await requireSession();
+
+  if (session.userType !== "structure") {
+    redirect("/platform/dashboard");
+  }
+
+  return session;
+}
+
+export async function requirePlatformSession(): Promise<PlatformSessionPayload> {
+  const session = await requireSession();
+
+  if (session.userType !== "platform") {
+    redirect("/dashboard");
+  }
+
+  return session;
+}
+
+export async function getSessionRedirectPath() {
+  const session = await getSession();
+
+  if (!session) {
+    return "/login";
+  }
+
+  return getDefaultRedirectPath(session);
 }
 
 export async function logout() {

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { requireSession } from "@/lib/auth";
+import { requireStructureSession } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -26,7 +26,7 @@ async function getClassRoom(structureId: string, classId: string) {
 async function updateClass(formData: FormData) {
   "use server";
 
-  const session = await requireSession();
+  const session = await requireStructureSession();
 
   const classId = String(formData.get("classId") || "").trim();
   const name = String(formData.get("name") || "").trim();
@@ -80,7 +80,7 @@ export default async function EditClassPage({
   params,
   searchParams,
 }: EditClassPageProps) {
-  const session = await requireSession();
+  const session = await requireStructureSession();
   const { classId } = await params;
   const qs = searchParams ? await searchParams : undefined;
 

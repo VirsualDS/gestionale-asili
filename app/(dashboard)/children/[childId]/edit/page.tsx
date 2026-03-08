@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { requireSession } from "@/lib/auth";
+import { requireStructureSession } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -41,7 +41,7 @@ async function getChild(structureId: string, childId: string) {
 async function updateChild(formData: FormData) {
   "use server";
 
-  const session = await requireSession();
+  const session = await requireStructureSession();
 
   const childId = String(formData.get("childId") || "").trim();
   const firstName = String(formData.get("firstName") || "").trim();
@@ -109,7 +109,7 @@ export default async function EditChildPage({
   params,
   searchParams,
 }: EditChildPageProps) {
-  const session = await requireSession();
+  const session = await requireStructureSession();
   const { childId } = await params;
   const qs = searchParams ? await searchParams : undefined;
 

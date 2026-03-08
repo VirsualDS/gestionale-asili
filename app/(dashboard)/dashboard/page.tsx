@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { requireSession } from "@/lib/auth";
+import { requireStructureSession } from "@/lib/auth";
 
 async function getDashboardData(structureId: string) {
   const structure = await prisma.structure.findUnique({
@@ -28,7 +28,7 @@ type DashboardStructure = NonNullable<Awaited<ReturnType<typeof getDashboardData
 type DashboardClassItem = DashboardStructure["classes"][number];
 
 export default async function DashboardPage() {
-  const session = await requireSession();
+  const session = await requireStructureSession();
   const structure = await getDashboardData(session.structureId);
 
   if (!structure) {

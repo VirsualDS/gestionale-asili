@@ -1,14 +1,14 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { requireSession } from "@/lib/auth";
+import { requireStructureSession } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 async function createChild(formData: FormData) {
   "use server";
 
-  const session = await requireSession();
+  const session = await requireStructureSession();
 
   const firstName = String(formData.get("firstName") || "").trim();
   const lastName = String(formData.get("lastName") || "").trim();
@@ -77,7 +77,7 @@ type NewChildPageProps = {
 type ClassRoomOption = Awaited<ReturnType<typeof getClasses>>[number];
 
 export default async function NewChildPage({ searchParams }: NewChildPageProps) {
-  const session = await requireSession();
+  const session = await requireStructureSession();
   const classes = await getClasses(session.structureId);
   const params = searchParams ? await searchParams : undefined;
 
