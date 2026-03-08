@@ -24,6 +24,9 @@ async function getDashboardData(structureId: string) {
   return structure;
 }
 
+type DashboardStructure = NonNullable<Awaited<ReturnType<typeof getDashboardData>>>;
+type DashboardClassItem = DashboardStructure["classes"][number];
+
 export default async function DashboardPage() {
   const session = await requireSession();
   const structure = await getDashboardData(session.structureId);
@@ -78,7 +81,7 @@ export default async function DashboardPage() {
           <p className="text-neutral-400">Nessuna classe presente.</p>
         ) : (
           <div className="space-y-3">
-            {structure.classes.map((classRoom) => (
+            {structure.classes.map((classRoom: DashboardClassItem) => (
               <div
                 key={classRoom.id}
                 className="flex items-center justify-between rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-3"
