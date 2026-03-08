@@ -1,7 +1,5 @@
-// build fix marker
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import type { AuthorizedPickupPerson, Guardian, PaymentRequest } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireSession } from "@/lib/auth";
 
@@ -38,6 +36,11 @@ async function getChildDetail(structureId: string, childId: string) {
     },
   });
 }
+
+type ChildDetailData = NonNullable<Awaited<ReturnType<typeof getChildDetail>>>;
+type GuardianItem = ChildDetailData["guardians"][number];
+type AuthorizedPickupPersonItem = ChildDetailData["authorizedPickupPeople"][number];
+type PaymentRequestItem = ChildDetailData["paymentRequests"][number];
 
 async function addGuardian(formData: FormData) {
   "use server";
@@ -457,7 +460,7 @@ export default async function ChildDetailPage({
             <p className="text-neutral-400">Nessun tutore registrato.</p>
           ) : (
             <div className="space-y-3">
-              {child.guardians.map((guardian: Guardian) => (
+              {child.guardians.map((guardian: GuardianItem) => (
                 <div
                   key={guardian.id}
                   className="rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-3"
@@ -497,22 +500,24 @@ export default async function ChildDetailPage({
             <p className="text-neutral-400">Nessuna persona autorizzata registrata.</p>
           ) : (
             <div className="space-y-3">
-              {child.authorizedPickupPeople.map((person: AuthorizedPickupPerson) => (
-                <div
-                  key={person.id}
-                  className="rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-3"
-                >
-                  <p className="font-medium text-white">
-                    {person.firstName} {person.lastName || ""}
-                  </p>
-                  <p className="mt-1 text-sm text-neutral-400">
-                    {person.phone || "Telefono non presente"}
-                  </p>
-                  <p className="mt-1 text-sm text-neutral-500">
-                    {person.note || "Nessuna nota"}
-                  </p>
-                </div>
-              ))}
+              {child.authorizedPickupPeople.map(
+                (person: AuthorizedPickupPersonItem) => (
+                  <div
+                    key={person.id}
+                    className="rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-3"
+                  >
+                    <p className="font-medium text-white">
+                      {person.firstName} {person.lastName || ""}
+                    </p>
+                    <p className="mt-1 text-sm text-neutral-400">
+                      {person.phone || "Telefono non presente"}
+                    </p>
+                    <p className="mt-1 text-sm text-neutral-500">
+                      {person.note || "Nessuna nota"}
+                    </p>
+                  </div>
+                )
+              )}
             </div>
           )}
         </section>
@@ -525,7 +530,7 @@ export default async function ChildDetailPage({
           <p className="text-neutral-400">Nessuna richiesta presente.</p>
         ) : (
           <div className="space-y-3">
-            {child.paymentRequests.map((request: PaymentRequest) => (
+            {child.paymentRequests.map((request: PaymentRequestItem) => (
               <div
                 key={request.id}
                 className="flex items-center justify-between rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-3"
