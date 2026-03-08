@@ -1,5 +1,7 @@
+// build fix marker
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import type { AuthorizedPickupPerson, Guardian, PaymentRequest } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireSession } from "@/lib/auth";
 
@@ -455,7 +457,7 @@ export default async function ChildDetailPage({
             <p className="text-neutral-400">Nessun tutore registrato.</p>
           ) : (
             <div className="space-y-3">
-              {child.guardians.map((guardian) => (
+              {child.guardians.map((guardian: Guardian) => (
                 <div
                   key={guardian.id}
                   className="rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-3"
@@ -495,7 +497,7 @@ export default async function ChildDetailPage({
             <p className="text-neutral-400">Nessuna persona autorizzata registrata.</p>
           ) : (
             <div className="space-y-3">
-              {child.authorizedPickupPeople.map((person) => (
+              {child.authorizedPickupPeople.map((person: AuthorizedPickupPerson) => (
                 <div
                   key={person.id}
                   className="rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-3"
@@ -523,7 +525,7 @@ export default async function ChildDetailPage({
           <p className="text-neutral-400">Nessuna richiesta presente.</p>
         ) : (
           <div className="space-y-3">
-            {child.paymentRequests.map((request) => (
+            {child.paymentRequests.map((request: PaymentRequest) => (
               <div
                 key={request.id}
                 className="flex items-center justify-between rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-3"
