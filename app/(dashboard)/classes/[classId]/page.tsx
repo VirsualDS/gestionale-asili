@@ -13,10 +13,7 @@ async function getClassDetail(structureId: string, classId: string) {
     },
     include: {
       children: {
-        orderBy: [
-          { lastName: "asc" },
-          { firstName: "asc" },
-        ],
+        orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
         include: {
           _count: {
             select: {
@@ -40,6 +37,9 @@ type ClassDetailPageProps = {
     classId: string;
   }>;
 };
+
+type ClassRoomDetail = NonNullable<Awaited<ReturnType<typeof getClassDetail>>>;
+type ClassChildItem = ClassRoomDetail["children"][number];
 
 export default async function ClassDetailPage({ params }: ClassDetailPageProps) {
   const session = await requireSession();
@@ -105,7 +105,7 @@ export default async function ClassDetailPage({ params }: ClassDetailPageProps) 
           </div>
         ) : (
           <div className="space-y-3">
-            {classRoom.children.map((child) => (
+            {classRoom.children.map((child: ClassChildItem) => (
               <div
                 key={child.id}
                 className="rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-4"
