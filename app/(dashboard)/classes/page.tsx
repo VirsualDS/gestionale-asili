@@ -65,6 +65,8 @@ type ClassesPageProps = {
   }>;
 };
 
+type ClassRoomListItem = Awaited<ReturnType<typeof getClasses>>[number];
+
 export default async function ClassesPage({ searchParams }: ClassesPageProps) {
   const session = await requireSession();
   const classes = await getClasses(session.structureId);
@@ -165,7 +167,7 @@ export default async function ClassesPage({ searchParams }: ClassesPageProps) {
             </div>
           ) : (
             <div className="space-y-3">
-              {classes.map((classRoom) => (
+              {classes.map((classRoom: ClassRoomListItem) => (
                 <Link
                   key={classRoom.id}
                   href={`/classes/${classRoom.id}`}
