@@ -49,6 +49,8 @@ async function getChildren(structureId: string, query?: string) {
   });
 }
 
+type ChildListItem = Awaited<ReturnType<typeof getChildren>>[number];
+
 export default async function ChildrenPage({ searchParams }: ChildrenPageProps) {
   const session = await requireSession();
   const params = searchParams ? await searchParams : undefined;
@@ -123,7 +125,7 @@ export default async function ChildrenPage({ searchParams }: ChildrenPageProps) 
           </div>
         ) : (
           <div className="space-y-3">
-            {children.map((child) => (
+            {children.map((child: ChildListItem) => (
               <Link
                 key={child.id}
                 href={`/children/${child.id}`}
