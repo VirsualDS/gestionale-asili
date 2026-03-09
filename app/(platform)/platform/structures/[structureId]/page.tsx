@@ -58,13 +58,23 @@ function formatDate(value: Date | string) {
 function getAccountStatusLabel(status: string) {
   switch (status) {
     case "ACTIVE":
+    case "active":
       return "Attivo";
     case "INACTIVE":
+    case "inactive":
       return "Inattivo";
     case "SUSPENDED":
+    case "suspended":
       return "Sospeso";
     case "PENDING":
+    case "pending":
       return "In attesa";
+    case "TRIAL":
+    case "trial":
+      return "Trial";
+    case "CANCELLED":
+    case "cancelled":
+      return "Cancellato";
     default:
       return status;
   }
@@ -73,13 +83,52 @@ function getAccountStatusLabel(status: string) {
 function getAccountStatusClasses(status: string) {
   switch (status) {
     case "ACTIVE":
+    case "active":
       return "border-emerald-500/30 bg-emerald-500/10 text-emerald-300";
     case "INACTIVE":
+    case "inactive":
       return "border-neutral-700 bg-neutral-800 text-neutral-300";
     case "SUSPENDED":
+    case "suspended":
       return "border-red-500/30 bg-red-500/10 text-red-300";
     case "PENDING":
+    case "pending":
       return "border-amber-500/30 bg-amber-500/10 text-amber-300";
+    case "TRIAL":
+    case "trial":
+      return "border-sky-500/30 bg-sky-500/10 text-sky-300";
+    case "CANCELLED":
+    case "cancelled":
+      return "border-red-500/30 bg-red-500/10 text-red-300";
+    default:
+      return "border-neutral-700 bg-neutral-800 text-neutral-300";
+  }
+}
+
+function getPaymentSetupStatusLabel(status: string) {
+  switch (status) {
+    case "not_configured":
+      return "Non configurato";
+    case "pending":
+      return "In attesa";
+    case "enabled":
+      return "Abilitato";
+    case "blocked":
+      return "Bloccato";
+    default:
+      return status;
+  }
+}
+
+function getPaymentSetupStatusClasses(status: string) {
+  switch (status) {
+    case "enabled":
+      return "border-emerald-500/30 bg-emerald-500/10 text-emerald-300";
+    case "pending":
+      return "border-amber-500/30 bg-amber-500/10 text-amber-300";
+    case "blocked":
+      return "border-red-500/30 bg-red-500/10 text-red-300";
+    case "not_configured":
     default:
       return "border-neutral-700 bg-neutral-800 text-neutral-300";
   }
@@ -126,24 +175,34 @@ export default async function PlatformStructureDetailPage({
             Dettaglio struttura
           </p>
 
-          <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-center">
+          <div className="mt-2 flex flex-col gap-3">
             <h1 className="text-4xl font-bold text-white">{structure.name}</h1>
 
-            <span
-              className={`inline-flex w-fit items-center rounded-full border px-3 py-1 text-xs font-medium ${getAccountStatusClasses(
-                structure.accountStatus
-              )}`}
-            >
-              Account: {getAccountStatusLabel(structure.accountStatus)}
-            </span>
+            <div className="flex flex-wrap gap-2">
+              <span
+                className={`inline-flex w-fit items-center rounded-full border px-3 py-1 text-xs font-medium ${getAccountStatusClasses(
+                  structure.accountStatus
+                )}`}
+              >
+                Account: {getAccountStatusLabel(structure.accountStatus)}
+              </span>
 
-            <span
-              className={`inline-flex w-fit items-center rounded-full border px-3 py-1 text-xs font-medium ${getBooleanBadgeClasses(
-                structure.isActive
-              )}`}
-            >
-              {structure.isActive ? "Struttura attiva" : "Struttura disattiva"}
-            </span>
+              <span
+                className={`inline-flex w-fit items-center rounded-full border px-3 py-1 text-xs font-medium ${getBooleanBadgeClasses(
+                  structure.isActive
+                )}`}
+              >
+                {structure.isActive ? "Struttura attiva" : "Struttura disattiva"}
+              </span>
+
+              <span
+                className={`inline-flex w-fit items-center rounded-full border px-3 py-1 text-xs font-medium ${getPaymentSetupStatusClasses(
+                  structure.paymentSetupStatus
+                )}`}
+              >
+                Pagamenti: {getPaymentSetupStatusLabel(structure.paymentSetupStatus)}
+              </span>
+            </div>
           </div>
 
           <p className="mt-3 text-neutral-400">
@@ -177,6 +236,13 @@ export default async function PlatformStructureDetailPage({
         </div>
 
         <div className="rounded-2xl border border-neutral-800 bg-neutral-900 p-6">
+          <p className="text-sm text-neutral-400">Stato pagamenti</p>
+          <p className="mt-2 text-2xl font-semibold text-white">
+            {getPaymentSetupStatusLabel(structure.paymentSetupStatus)}
+          </p>
+        </div>
+
+        <div className="rounded-2xl border border-neutral-800 bg-neutral-900 p-6">
           <p className="text-sm text-neutral-400">Utenti</p>
           <p className="mt-2 text-2xl font-semibold text-white">
             {structure._count.users}
@@ -194,13 +260,6 @@ export default async function PlatformStructureDetailPage({
           <p className="text-sm text-neutral-400">Bambini</p>
           <p className="mt-2 text-2xl font-semibold text-white">
             {structure._count.children}
-          </p>
-        </div>
-
-        <div className="rounded-2xl border border-neutral-800 bg-neutral-900 p-6">
-          <p className="text-sm text-neutral-400">Richieste / pagamenti</p>
-          <p className="mt-2 text-2xl font-semibold text-white">
-            {structure._count.paymentRequests} / {structure._count.payments}
           </p>
         </div>
       </section>
@@ -348,6 +407,35 @@ export default async function PlatformStructureDetailPage({
             ))}
           </div>
         )}
+      </section>
+
+      <section className="mt-6 rounded-2xl border border-neutral-800 bg-neutral-900 p-6">
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-xl font-semibold text-white">Panoramica economica</h2>
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-3">
+          <div className="rounded-xl border border-neutral-800 bg-neutral-950 p-4">
+            <p className="text-sm text-neutral-500">Richieste di pagamento</p>
+            <p className="mt-1 text-lg font-semibold text-white">
+              {structure._count.paymentRequests}
+            </p>
+          </div>
+
+          <div className="rounded-xl border border-neutral-800 bg-neutral-950 p-4">
+            <p className="text-sm text-neutral-500">Pagamenti registrati</p>
+            <p className="mt-1 text-lg font-semibold text-white">
+              {structure._count.payments}
+            </p>
+          </div>
+
+          <div className="rounded-xl border border-neutral-800 bg-neutral-950 p-4">
+            <p className="text-sm text-neutral-500">Stato setup pagamenti</p>
+            <p className="mt-1 text-lg font-semibold text-white">
+              {getPaymentSetupStatusLabel(structure.paymentSetupStatus)}
+            </p>
+          </div>
+        </div>
       </section>
     </div>
   );
