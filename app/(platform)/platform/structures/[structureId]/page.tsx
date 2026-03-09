@@ -2,12 +2,17 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requirePlatformSession } from "@/lib/auth";
+import { updateStructurePaymentSetupStatus } from "./actions";
 
 export const dynamic = "force-dynamic";
 
 type PlatformStructureDetailPageProps = {
   params: Promise<{
     structureId: string;
+  }>;
+  searchParams?: Promise<{
+    error?: string;
+    success?: string;
   }>;
 };
 
@@ -150,15 +155,27 @@ function getUserDisplayName(user: StructureUserItem) {
 
 export default async function PlatformStructureDetailPage({
   params,
+  searchParams,
 }: PlatformStructureDetailPageProps) {
   await requirePlatformSession();
   const { structureId } = await params;
+  const resolvedSearchParams = searchParams ? await searchParams : undefined;
 
   const structure = await getStructureDetail(structureId);
 
   if (!structure) {
     notFound();
   }
+
+  const errorMessage =
+    resolvedSearchParams?.error === "invalid-payment-setup-status"
+      ? "Stato setup pagamenti non valido."
+      : null;
+
+  const successMessage =
+    resolvedSearchParams?.success === "payment-setup-status-updated"
+      ? "Stato setup pagamenti aggiornato correttamente."
+      : null;
 
   return (
     <div>
@@ -219,6 +236,18 @@ export default async function PlatformStructureDetailPage({
           </Link>
         </div>
       </div>
+
+      {errorMessage && (
+        <div className="mb-6 rounded-xl border border-red-900 bg-red-950/40 px-4 py-3 text-sm text-red-300">
+          {errorMessage}
+        </div>
+      )}
+
+      {successMessage && (
+        <div className="mb-6 rounded-xl border border-emerald-900 bg-emerald-950/40 px-4 py-3 text-sm text-emerald-300">
+          {successMessage}
+        </div>
+      )}
 
       <section className="mb-8 grid gap-4 md:grid-cols-2 xl:grid-cols-6">
         <div className="rounded-2xl border border-neutral-800 bg-neutral-900 p-6">
@@ -321,48 +350,94 @@ export default async function PlatformStructureDetailPage({
 
         <section className="rounded-2xl border border-neutral-800 bg-neutral-900 p-6">
           <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-xl font-semibold text-white">Utenti struttura</h2>
-            <p className="text-sm text-neutral-500">
-              Totale: {structure._count.users}
-            </p>
+            <h2 className="text-xl font-semibold text-white">Setup pagamenti</h2>
           </div>
 
-          {structure.users.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-neutral-800 bg-neutral-950 p-4">
-              <p className="text-sm text-neutral-400">Nessun utente associato.</p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {structure.users.map((user: StructureUserItem) => (
-                <div
-                  key={user.id}
-                  className="rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-4"
-                >
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                    <div>
-                      <p className="font-medium text-white">
-                        {getUserDisplayName(user)}
-                      </p>
-                      <p className="mt-1 text-sm text-neutral-400">{user.email}</p>
-                      <p className="mt-2 text-sm text-neutral-500">
-                        Ruolo: {user.role}
-                      </p>
-                    </div>
+          <div className="rounded-xl border border-neutral-800 bg-neutral-950 p-4">
+            <p className="text-sm text-neutral-400">
+              Stato attuale:{" "}
+              <span className="font-medium text-white">
+                {getPaymentSetupStatusLabel(structure.paymentSetupStatus)}
+              </span>
+            </p>
 
-                    <span
-                      className={`inline-flex w-fit items-center rounded-full border px-3 py-1 text-xs font-medium ${getBooleanBadgeClasses(
-                        user.isActive
-                      )}`}
-                    >
-                      {user.isActive ? "Attivo" : "Disattivato"}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+            <form action={updateStructurePaymentSetupStatus} className="mt-4 space-y-4">
+              <input type="hidden" name="structureId" value={structure.id} />
+
+              <div>
+                <label
+                  htmlFor="paymentSetupStatus"
+                  className="mb-2 block text-sm font-medium text-neutral-300"
+                >
+                  Cambia stato setup pagamenti
+                </label>
+                <select
+                  id="paymentSetupStatus"
+                  name="paymentSetupStatus"
+                  defaultValue={structure.paymentSetupStatus}
+                  className="w-full rounded-xl border border-neutral-700 bg-neutral-900 px-4 py-3 text-white outline-none transition focus:border-neutral-500"
+                >
+                  <option value="not_configured">Non configurato</option>
+                  <option value="pending">In attesa</option>
+                  <option value="enabled">Abilitato</option>
+                  <option value="blocked">Bloccato</option>
+                </select>
+              </div>
+
+              <button
+                type="submit"
+                className="rounded-xl border border-neutral-700 px-4 py-3 text-sm font-medium text-neutral-200 transition hover:bg-neutral-800"
+              >
+                Aggiorna stato pagamenti
+              </button>
+            </form>
+          </div>
         </section>
       </div>
+
+      <section className="mt-6 rounded-2xl border border-neutral-800 bg-neutral-900 p-6">
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-xl font-semibold text-white">Utenti struttura</h2>
+          <p className="text-sm text-neutral-500">
+            Totale: {structure._count.users}
+          </p>
+        </div>
+
+        {structure.users.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-neutral-800 bg-neutral-950 p-4">
+            <p className="text-sm text-neutral-400">Nessun utente associato.</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {structure.users.map((user: StructureUserItem) => (
+              <div
+                key={user.id}
+                className="rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-4"
+              >
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <p className="font-medium text-white">
+                      {getUserDisplayName(user)}
+                    </p>
+                    <p className="mt-1 text-sm text-neutral-400">{user.email}</p>
+                    <p className="mt-2 text-sm text-neutral-500">
+                      Ruolo: {user.role}
+                    </p>
+                  </div>
+
+                  <span
+                    className={`inline-flex w-fit items-center rounded-full border px-3 py-1 text-xs font-medium ${getBooleanBadgeClasses(
+                      user.isActive
+                    )}`}
+                  >
+                    {user.isActive ? "Attivo" : "Disattivato"}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
 
       <section className="mt-6 rounded-2xl border border-neutral-800 bg-neutral-900 p-6">
         <div className="mb-4 flex items-center justify-between">
