@@ -144,6 +144,91 @@ async function deleteStructure(formData: FormData) {
 
 type StructureListItem = Awaited<ReturnType<typeof getStructures>>[number];
 
+function getAccountStatusLabel(status: string) {
+  switch (status) {
+    case "ACTIVE":
+    case "active":
+      return "Attivo";
+    case "INACTIVE":
+    case "inactive":
+      return "Inattivo";
+    case "SUSPENDED":
+    case "suspended":
+      return "Sospeso";
+    case "PENDING":
+    case "pending":
+      return "In attesa";
+    case "TRIAL":
+    case "trial":
+      return "Trial";
+    case "CANCELLED":
+    case "cancelled":
+      return "Cancellato";
+    default:
+      return status;
+  }
+}
+
+function getAccountStatusClasses(status: string) {
+  switch (status) {
+    case "ACTIVE":
+    case "active":
+      return "border-emerald-500/30 bg-emerald-500/10 text-emerald-300";
+    case "INACTIVE":
+    case "inactive":
+      return "border-neutral-700 bg-neutral-800 text-neutral-300";
+    case "SUSPENDED":
+    case "suspended":
+      return "border-red-500/30 bg-red-500/10 text-red-300";
+    case "PENDING":
+    case "pending":
+      return "border-amber-500/30 bg-amber-500/10 text-amber-300";
+    case "TRIAL":
+    case "trial":
+      return "border-sky-500/30 bg-sky-500/10 text-sky-300";
+    case "CANCELLED":
+    case "cancelled":
+      return "border-red-500/30 bg-red-500/10 text-red-300";
+    default:
+      return "border-neutral-700 bg-neutral-800 text-neutral-300";
+  }
+}
+
+function getPaymentSetupStatusLabel(status: string) {
+  switch (status) {
+    case "not_configured":
+      return "Non configurato";
+    case "pending":
+      return "In attesa";
+    case "enabled":
+      return "Abilitato";
+    case "blocked":
+      return "Bloccato";
+    default:
+      return status;
+  }
+}
+
+function getPaymentSetupStatusClasses(status: string) {
+  switch (status) {
+    case "enabled":
+      return "border-emerald-500/30 bg-emerald-500/10 text-emerald-300";
+    case "pending":
+      return "border-amber-500/30 bg-amber-500/10 text-amber-300";
+    case "blocked":
+      return "border-red-500/30 bg-red-500/10 text-red-300";
+    case "not_configured":
+    default:
+      return "border-neutral-700 bg-neutral-800 text-neutral-300";
+  }
+}
+
+function getBooleanBadgeClasses(value: boolean) {
+  return value
+    ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
+    : "border-red-500/30 bg-red-500/10 text-red-300";
+}
+
 export default async function PlatformStructuresPage({
   searchParams,
 }: PlatformStructuresPageProps) {
@@ -261,26 +346,71 @@ export default async function PlatformStructuresPage({
                   key={structure.id}
                   className="rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-4"
                 >
-                  <div className="flex items-start justify-between gap-4">
+                  <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                     <div className="min-w-0 flex-1">
-                      <p className="font-medium text-white">{structure.name}</p>
-                      <p className="mt-1 text-sm text-neutral-500">
-                        {structure.email || "Email struttura non presente"}
-                      </p>
-                      <p className="mt-1 text-sm text-neutral-500">
-                        Stato account: {structure.accountStatus} ·{" "}
-                        {structure.isActive ? "Attiva" : "Disattivata"}
-                      </p>
-                      <p className="mt-1 text-sm text-neutral-500">
-                        Admin: {adminUser?.name || "—"} · {adminUser?.email || "—"}
-                      </p>
+                      <div className="flex flex-col gap-3">
+                        <div>
+                          <p className="font-medium text-white">{structure.name}</p>
+                          <p className="mt-1 text-sm text-neutral-500">
+                            {structure.email || "Email struttura non presente"}
+                          </p>
+                        </div>
+
+                        <div className="flex flex-wrap gap-2">
+                          <span
+                            className={`inline-flex w-fit items-center rounded-full border px-3 py-1 text-xs font-medium ${getAccountStatusClasses(
+                              structure.accountStatus
+                            )}`}
+                          >
+                            Account: {getAccountStatusLabel(structure.accountStatus)}
+                          </span>
+
+                          <span
+                            className={`inline-flex w-fit items-center rounded-full border px-3 py-1 text-xs font-medium ${getBooleanBadgeClasses(
+                              structure.isActive
+                            )}`}
+                          >
+                            {structure.isActive ? "Struttura attiva" : "Struttura disattiva"}
+                          </span>
+
+                          <span
+                            className={`inline-flex w-fit items-center rounded-full border px-3 py-1 text-xs font-medium ${getPaymentSetupStatusClasses(
+                              structure.paymentSetupStatus
+                            )}`}
+                          >
+                            Pagamenti:{" "}
+                            {getPaymentSetupStatusLabel(structure.paymentSetupStatus)}
+                          </span>
+                        </div>
+
+                        <p className="text-sm text-neutral-500">
+                          Admin: {adminUser?.name || "—"} · {adminUser?.email || "—"}
+                        </p>
+                      </div>
                     </div>
 
-                    <div className="text-right text-sm text-neutral-400">
-                      <p>Utenti: {structure._count.users}</p>
-                      <p>Classi: {structure._count.classes}</p>
-                      <p>Bambini: {structure._count.children}</p>
-                      <p>Richieste: {structure._count.paymentRequests}</p>
+                    <div className="grid grid-cols-2 gap-3 text-sm text-neutral-400 sm:grid-cols-4 xl:min-w-[340px]">
+                      <div className="rounded-lg border border-neutral-800 bg-neutral-900 px-3 py-2">
+                        <p className="text-xs text-neutral-500">Utenti</p>
+                        <p className="mt-1 font-medium text-white">{structure._count.users}</p>
+                      </div>
+
+                      <div className="rounded-lg border border-neutral-800 bg-neutral-900 px-3 py-2">
+                        <p className="text-xs text-neutral-500">Classi</p>
+                        <p className="mt-1 font-medium text-white">{structure._count.classes}</p>
+                      </div>
+
+                      <div className="rounded-lg border border-neutral-800 bg-neutral-900 px-3 py-2">
+                        <p className="text-xs text-neutral-500">Bambini</p>
+                        <p className="mt-1 font-medium text-white">{structure._count.children}</p>
+                      </div>
+
+                      <div className="rounded-lg border border-neutral-800 bg-neutral-900 px-3 py-2">
+                        <p className="text-xs text-neutral-500">Richieste</p>
+                        <p className="mt-1 font-medium text-white">
+                          {structure._count.paymentRequests}
+                        </p>
+                      </div>
                     </div>
                   </div>
 
