@@ -2,7 +2,10 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requirePlatformSession } from "@/lib/auth";
-import { updateStructurePaymentSetupStatus } from "./actions";
+import {
+  toggleStructureUserStatus,
+  updateStructurePaymentSetupStatus,
+} from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -170,11 +173,17 @@ export default async function PlatformStructureDetailPage({
   const errorMessage =
     resolvedSearchParams?.error === "invalid-payment-setup-status"
       ? "Stato setup pagamenti non valido."
+      : resolvedSearchParams?.error === "invalid-user"
+      ? "Utente non valido."
+      : resolvedSearchParams?.error === "user-not-found"
+      ? "Utente struttura non trovato."
       : null;
 
   const successMessage =
     resolvedSearchParams?.success === "payment-setup-status-updated"
       ? "Stato setup pagamenti aggiornato correttamente."
+      : resolvedSearchParams?.success === "user-status-updated"
+      ? "Stato utente aggiornato correttamente."
       : null;
 
   return (
@@ -414,24 +423,35 @@ export default async function PlatformStructureDetailPage({
                 key={user.id}
                 className="rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-4"
               >
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                   <div>
-                    <p className="font-medium text-white">
-                      {getUserDisplayName(user)}
-                    </p>
+                    <p className="font-medium text-white">{getUserDisplayName(user)}</p>
                     <p className="mt-1 text-sm text-neutral-400">{user.email}</p>
                     <p className="mt-2 text-sm text-neutral-500">
                       Ruolo: {user.role}
                     </p>
                   </div>
 
-                  <span
-                    className={`inline-flex w-fit items-center rounded-full border px-3 py-1 text-xs font-medium ${getBooleanBadgeClasses(
-                      user.isActive
-                    )}`}
-                  >
-                    {user.isActive ? "Attivo" : "Disattivato"}
-                  </span>
+                  <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center lg:items-end">
+                    <span
+                      className={`inline-flex w-fit items-center rounded-full border px-3 py-1 text-xs font-medium ${getBooleanBadgeClasses(
+                        user.isActive
+                      )}`}
+                    >
+                      {user.isActive ? "Attivo" : "Disattivato"}
+                    </span>
+
+                    <form action={toggleStructureUserStatus}>
+                      <input type="hidden" name="structureId" value={structure.id} />
+                      <input type="hidden" name="userId" value={user.id} />
+                      <button
+                        type="submit"
+                        className="rounded-lg border border-neutral-700 px-3 py-2 text-sm text-neutral-200 transition hover:bg-neutral-800"
+                      >
+                        {user.isActive ? "Disattiva utente" : "Attiva utente"}
+                      </button>
+                    </form>
+                  </div>
                 </div>
               </div>
             ))}
