@@ -6,6 +6,13 @@ datasource db {
   provider = "postgresql"
 }
 
+enum PaymentSetupStatus {
+  not_configured
+  pending
+  enabled
+  blocked
+}
+
 model PlatformUser {
   id           String   @id @default(cuid())
   name         String
@@ -18,16 +25,17 @@ model PlatformUser {
 }
 
 model Structure {
-  id            String          @id @default(cuid())
-  name          String
-  email         String?         @unique
-  phone         String?
-  address       String?
-  logoUrl       String?
-  accountStatus String          @default("trial") // trial, active, suspended, cancelled
-  isActive      Boolean         @default(true)
-  createdAt     DateTime        @default(now())
-  updatedAt     DateTime        @updatedAt
+  id                 String             @id @default(cuid())
+  name               String
+  email              String?            @unique
+  phone              String?
+  address            String?
+  logoUrl            String?
+  accountStatus      String             @default("trial") // trial, active, suspended, cancelled
+  paymentSetupStatus PaymentSetupStatus @default(not_configured)
+  isActive           Boolean            @default(true)
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
 
   users           StructureUser[]
   classes         ClassRoom[]
@@ -133,19 +141,19 @@ model AuthorizedPickupPerson {
 
 model PaymentRequest {
   id             String   @id @default(cuid())
-  structureId     String
-  childId         String
-  type            String   // monthly_fee, extra
-  title           String
-  description     String?
-  amount          Decimal  @db.Decimal(10, 2)
-  dueDate         DateTime?
-  status          String   @default("pending") // pending, paid, overdue, cancelled
-  publicToken     String   @unique @default(cuid())
-  publicLink      String?
-  groupKey        String?  // per collegare richieste nate da invio collettivo
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  structureId    String
+  childId        String
+  type           String   // monthly_fee, extra
+  title          String
+  description    String?
+  amount         Decimal  @db.Decimal(10, 2)
+  dueDate        DateTime?
+  status         String   @default("pending") // pending, paid, overdue, cancelled
+  publicToken    String   @unique @default(cuid())
+  publicLink     String?
+  groupKey       String?  // per collegare richieste nate da invio collettivo
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   structure Structure @relation(fields: [structureId], references: [id], onDelete: Cascade)
   child     Child     @relation(fields: [childId], references: [id], onDelete: Cascade)
