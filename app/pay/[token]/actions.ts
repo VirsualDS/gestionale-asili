@@ -109,6 +109,7 @@ export async function startPublicPaymentCheckout(
   const baseUrl = getBaseUrl();
   const childFullName =
     `${paymentRequest.child.firstName} ${paymentRequest.child.lastName}`.trim();
+  const destinationAccountId = paymentRequest.structure.stripeAccountId;
 
   const session = await stripe.checkout.sessions.create({
     mode: "payment",
@@ -139,8 +140,9 @@ export async function startPublicPaymentCheckout(
     },
     payment_intent_data: {
       application_fee_amount: applicationFeeAmount,
+      on_behalf_of: destinationAccountId,
       transfer_data: {
-        destination: paymentRequest.structure.stripeAccountId,
+        destination: destinationAccountId,
       },
       metadata: {
         paymentRequestId: paymentRequest.id,
@@ -167,23 +169,53 @@ export async function startPublicPaymentCheckout(
     },
   });
 
-  await prisma.payment.create({
-    data: {
-      structureId: paymentRequest.structure.id,
+  const existingPayment = await prisma.payment.findFirst({
+    where: {
       paymentRequestId: paymentRequest.id,
-      amount: paymentRequest.amount,
-      grossAmount: paymentRequest.amount,
-      applicationFeeAmount: Number((applicationFeeAmount / 100).toFixed(2)),
-      netAmountToStructure: Number(
-        ((amountInCents - applicationFeeAmount) / 100).toFixed(2)
-      ),
-      currency: "eur",
       status: "pending",
-      provider: "stripe",
-      providerRef: session.id,
-      stripeCheckoutSessionId: session.id,
+    },
+    select: {
+      id: true,
     },
   });
+
+  if (existingPayment) {
+    await prisma.payment.update({
+      where: {
+        id: existingPayment.id,
+      },
+      data: {
+        amount: paymentRequest.amount,
+        grossAmount: paymentRequest.amount,
+        applicationFeeAmount: Number((applicationFeeAmount / 100).toFixed(2)),
+        netAmountToStructure: Number(
+          ((amountInCents - applicationFeeAmount) / 100).toFixed(2)
+        ),
+        currency: "eur",
+        provider: "stripe",
+        providerRef: session.id,
+        stripeCheckoutSessionId: session.id,
+      },
+    });
+  } else {
+    await prisma.payment.create({
+      data: {
+        structureId: paymentRequest.structure.id,
+        paymentRequestId: paymentRequest.id,
+        amount: paymentRequest.amount,
+        grossAmount: paymentRequest.amount,
+        applicationFeeAmount: Number((applicationFeeAmount / 100).toFixed(2)),
+        netAmountToStructure: Number(
+          ((amountInCents - applicationFeeAmount) / 100).toFixed(2)
+        ),
+        currency: "eur",
+        status: "pending",
+        provider: "stripe",
+        providerRef: session.id,
+        stripeCheckoutSessionId: session.id,
+      },
+    });
+  }
 
   if (!session.url) {
     return {
