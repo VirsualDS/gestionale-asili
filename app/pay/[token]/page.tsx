@@ -1,12 +1,16 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { startPublicPaymentCheckout } from "./actions";
 
 export const dynamic = "force-dynamic";
 
 type PublicPaymentPageProps = {
   params: Promise<{
     token: string;
+  }>;
+  searchParams?: Promise<{
+    error?: string;
   }>;
 };
 
@@ -137,8 +141,10 @@ function getPublicPageState(
 
 export default async function PublicPaymentPage({
   params,
+  searchParams,
 }: PublicPaymentPageProps) {
   const { token } = await params;
+  const resolvedSearchParams = searchParams ? await searchParams : undefined;
   const paymentRequest = await getPaymentRequestByToken(token);
 
   if (!paymentRequest) {
@@ -149,6 +155,20 @@ export default async function PublicPaymentPage({
     `${paymentRequest.child.firstName} ${paymentRequest.child.lastName}`.trim();
   const pageState = getPublicPageState(paymentRequest);
   const latestPayment = paymentRequest.payments[0] ?? null;
+
+  const errorMessage = resolvedSearchParams?.error
+    ? decodeURIComponent(resolvedSearchParams.error)
+    : null;
+
+  async function handleStartCheckout() {
+    "use server";
+
+    const result = await startPublicPaymentCheckout(token);
+
+    if (!result.ok) {
+      redirect(`/pay/${token}?error=${encodeURIComponent(result.error)}`);
+    }
+  }
 
   return (
     <main className="min-h-screen bg-neutral-950 px-4 py-10 text-white">
@@ -164,6 +184,12 @@ export default async function PublicPaymentPage({
             Verifica i dettagli della richiesta di pagamento prima di procedere.
           </p>
         </div>
+
+        {errorMessage && (
+          <div className="mb-6 rounded-xl border border-red-900 bg-red-950/40 px-4 py-3 text-sm text-red-300">
+            {errorMessage}
+          </div>
+        )}
 
         <section className="rounded-3xl border border-neutral-800 bg-neutral-900 p-6 shadow-2xl shadow-black/20">
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -244,20 +270,21 @@ export default async function PublicPaymentPage({
             {pageState === "ready" && (
               <>
                 <p className="text-lg font-semibold text-white">
-                  Pagamento non ancora avviato
+                  Pagamento pronto
                 </p>
                 <p className="mt-2 text-sm text-neutral-400">
-                  La richiesta è valida. Nel prossimo step questa pagina porterà
-                  al checkout sicuro per completare il pagamento.
+                  La richiesta è valida. Clicca qui sotto per accedere al checkout
+                  sicuro e completare il pagamento.
                 </p>
                 <div className="mt-5">
-                  <button
-                    type="button"
-                    disabled
-                    className="cursor-not-allowed rounded-xl bg-white/20 px-5 py-3 font-semibold text-white/70"
-                  >
-                    Paga ora
-                  </button>
+                  <form action={handleStartCheckout}>
+                    <button
+                      type="submit"
+                      className="rounded-xl bg-white px-5 py-3 font-semibold text-black transition hover:bg-neutral-200"
+                    >
+                      Paga ora
+                    </button>
+                  </form>
                 </div>
               </>
             )}

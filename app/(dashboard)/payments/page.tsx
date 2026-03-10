@@ -193,6 +193,22 @@ function getChildFullName(child: PaymentsChildItem) {
   return `${child.firstName} ${child.lastName}`.trim();
 }
 
+function getWhatsAppShareUrl(params: {
+  childName: string;
+  title: string;
+  amount: string;
+  publicLink: string;
+}) {
+  const message =
+    `Ciao, ti invio il link per il pagamento.\n\n` +
+    `Bambino: ${params.childName}\n` +
+    `Causale: ${params.title}\n` +
+    `Importo: ${params.amount}\n\n` +
+    `Link pagamento: ${params.publicLink}`;
+
+  return `https://wa.me/?text=${encodeURIComponent(message)}`;
+}
+
 export default async function PaymentsPage({ searchParams }: PaymentsPageProps) {
   const session = await requireStructureSession();
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
@@ -403,6 +419,17 @@ export default async function PaymentsPage({ searchParams }: PaymentsPageProps) 
                       const hasMonthlyFee = child.monthlyFee !== null;
                       const canGenerateLink = paymentsEnabled && hasMonthlyFee;
 
+                      const publicLink = latestRequest?.publicLink || null;
+                      const whatsappUrl =
+                        latestRequest?.publicLink
+                          ? getWhatsAppShareUrl({
+                              childName: getChildFullName(child),
+                              title: latestRequest.title,
+                              amount: formatCurrency(child.monthlyFee!.toString()),
+                              publicLink: latestRequest.publicLink,
+                            })
+                          : null;
+
                       return (
                         <div
                           key={child.id}
@@ -472,7 +499,7 @@ export default async function PaymentsPage({ searchParams }: PaymentsPageProps) 
                               )}
                             </div>
 
-                            <div className="flex flex-wrap gap-3 xl:w-[360px] xl:justify-end">
+                            <div className="flex flex-wrap gap-3 xl:w-[420px] xl:justify-end">
                               <form action={generateMonthlyPaymentLink}>
                                 <input type="hidden" name="childId" value={child.id} />
                                 <button
@@ -484,19 +511,25 @@ export default async function PaymentsPage({ searchParams }: PaymentsPageProps) 
                                 </button>
                               </form>
 
-                              {latestRequest?.publicLink ? (
+                              {publicLink ? (
                                 <>
                                   <Link
-                                    href={latestRequest.publicLink}
+                                    href={publicLink}
                                     target="_blank"
                                     className="rounded-xl border border-neutral-700 px-4 py-3 text-sm font-medium text-neutral-200 transition hover:bg-neutral-800"
                                   >
                                     Apri link
                                   </Link>
 
-                                  <span className="rounded-xl border border-neutral-700 px-4 py-3 text-sm font-medium text-neutral-400">
-                                    Copia link manuale
-                                  </span>
+                                  {whatsappUrl ? (
+                                    <Link
+                                      href={whatsappUrl}
+                                      target="_blank"
+                                      className="rounded-xl border border-neutral-700 px-4 py-3 text-sm font-medium text-neutral-200 transition hover:bg-neutral-800"
+                                    >
+                                      Condividi WhatsApp
+                                    </Link>
+                                  ) : null}
                                 </>
                               ) : (
                                 <>
@@ -513,7 +546,7 @@ export default async function PaymentsPage({ searchParams }: PaymentsPageProps) 
                                     disabled
                                     className="rounded-xl border border-neutral-700 px-4 py-3 text-sm font-medium text-neutral-200 opacity-40"
                                   >
-                                    Copia link
+                                    Condividi WhatsApp
                                   </button>
                                 </>
                               )}
