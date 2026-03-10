@@ -6,6 +6,10 @@ import {
   toggleStructureUserStatus,
   updateStructurePaymentSetupStatus,
 } from "./actions";
+import {
+  refreshStructureStripeStatus,
+  startStructureStripeOnboarding,
+} from "./stripe-actions";
 
 export const dynamic = "force-dynamic";
 
@@ -156,6 +160,35 @@ function getUserDisplayName(user: StructureUserItem) {
   return user.email;
 }
 
+function getStripeAccountStatusLabel(status?: string | null) {
+  switch (status) {
+    case "active":
+      return "Attivo";
+    case "pending":
+      return "In attesa";
+    case "restricted":
+      return "Limitato";
+    case "disabled":
+      return "Disabilitato";
+    default:
+      return "Non collegato";
+  }
+}
+
+function getStripeAccountStatusClasses(status?: string | null) {
+  switch (status) {
+    case "active":
+      return "border-emerald-500/30 bg-emerald-500/10 text-emerald-300";
+    case "pending":
+      return "border-amber-500/30 bg-amber-500/10 text-amber-300";
+    case "restricted":
+    case "disabled":
+      return "border-red-500/30 bg-red-500/10 text-red-300";
+    default:
+      return "border-neutral-700 bg-neutral-800 text-neutral-300";
+  }
+}
+
 export default async function PlatformStructureDetailPage({
   params,
   searchParams,
@@ -177,6 +210,10 @@ export default async function PlatformStructureDetailPage({
       ? "Utente non valido."
       : resolvedSearchParams?.error === "user-not-found"
       ? "Utente struttura non trovato."
+      : resolvedSearchParams?.error === "stripe-account-missing"
+      ? "Account Stripe non collegato alla struttura."
+      : resolvedSearchParams?.error === "stripe-onboarding-refresh"
+      ? "Onboarding Stripe non completato. Puoi riprendere la procedura."
       : null;
 
   const successMessage =
@@ -184,6 +221,10 @@ export default async function PlatformStructureDetailPage({
       ? "Stato setup pagamenti aggiornato correttamente."
       : resolvedSearchParams?.success === "user-status-updated"
       ? "Stato utente aggiornato correttamente."
+      : resolvedSearchParams?.success === "stripe-onboarding-return"
+      ? "Rientro da Stripe completato. Ora sincronizza lo stato."
+      : resolvedSearchParams?.success === "stripe-status-refreshed"
+      ? "Stato Stripe sincronizzato correttamente."
       : null;
 
   return (
@@ -227,6 +268,14 @@ export default async function PlatformStructureDetailPage({
                 )}`}
               >
                 Pagamenti: {getPaymentSetupStatusLabel(structure.paymentSetupStatus)}
+              </span>
+
+              <span
+                className={`inline-flex w-fit items-center rounded-full border px-3 py-1 text-xs font-medium ${getStripeAccountStatusClasses(
+                  structure.stripeAccountStatus
+                )}`}
+              >
+                Stripe: {getStripeAccountStatusLabel(structure.stripeAccountStatus)}
               </span>
             </div>
           </div>
@@ -281,16 +330,16 @@ export default async function PlatformStructureDetailPage({
         </div>
 
         <div className="rounded-2xl border border-neutral-800 bg-neutral-900 p-6">
-          <p className="text-sm text-neutral-400">Utenti</p>
+          <p className="text-sm text-neutral-400">Stripe account</p>
           <p className="mt-2 text-2xl font-semibold text-white">
-            {structure._count.users}
+            {getStripeAccountStatusLabel(structure.stripeAccountStatus)}
           </p>
         </div>
 
         <div className="rounded-2xl border border-neutral-800 bg-neutral-900 p-6">
-          <p className="text-sm text-neutral-400">Classi</p>
+          <p className="text-sm text-neutral-400">Utenti</p>
           <p className="mt-2 text-2xl font-semibold text-white">
-            {structure._count.classes}
+            {structure._count.users}
           </p>
         </div>
 
@@ -359,50 +408,137 @@ export default async function PlatformStructureDetailPage({
 
         <section className="rounded-2xl border border-neutral-800 bg-neutral-900 p-6">
           <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-xl font-semibold text-white">Setup pagamenti</h2>
+            <h2 className="text-xl font-semibold text-white">Stripe Connect</h2>
           </div>
 
           <div className="rounded-xl border border-neutral-800 bg-neutral-950 p-4">
-            <p className="text-sm text-neutral-400">
-              Stato attuale:{" "}
-              <span className="font-medium text-white">
-                {getPaymentSetupStatusLabel(structure.paymentSetupStatus)}
-              </span>
-            </p>
-
-            <form action={updateStructurePaymentSetupStatus} className="mt-4 space-y-4">
-              <input type="hidden" name="structureId" value={structure.id} />
-
-              <div>
-                <label
-                  htmlFor="paymentSetupStatus"
-                  className="mb-2 block text-sm font-medium text-neutral-300"
-                >
-                  Cambia stato setup pagamenti
-                </label>
-                <select
-                  id="paymentSetupStatus"
-                  name="paymentSetupStatus"
-                  defaultValue={structure.paymentSetupStatus}
-                  className="w-full rounded-xl border border-neutral-700 bg-neutral-900 px-4 py-3 text-white outline-none transition focus:border-neutral-500"
-                >
-                  <option value="not_configured">Non configurato</option>
-                  <option value="pending">In attesa</option>
-                  <option value="enabled">Abilitato</option>
-                  <option value="blocked">Bloccato</option>
-                </select>
+            <div className="space-y-3 text-sm">
+              <div className="flex items-center justify-between gap-4">
+                <span className="text-neutral-400">Stripe account ID</span>
+                <span className="font-medium text-white">
+                  {structure.stripeAccountId || "Non collegato"}
+                </span>
               </div>
 
-              <button
-                type="submit"
-                className="rounded-xl border border-neutral-700 px-4 py-3 text-sm font-medium text-neutral-200 transition hover:bg-neutral-800"
-              >
-                Aggiorna stato pagamenti
-              </button>
-            </form>
+              <div className="flex items-center justify-between gap-4">
+                <span className="text-neutral-400">Status account Stripe</span>
+                <span className="font-medium text-white">
+                  {getStripeAccountStatusLabel(structure.stripeAccountStatus)}
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between gap-4">
+                <span className="text-neutral-400">Charges enabled</span>
+                <span className="font-medium text-white">
+                  {structure.stripeChargesEnabled ? "Sì" : "No"}
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between gap-4">
+                <span className="text-neutral-400">Payouts enabled</span>
+                <span className="font-medium text-white">
+                  {structure.stripePayoutsEnabled ? "Sì" : "No"}
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between gap-4">
+                <span className="text-neutral-400">Details submitted</span>
+                <span className="font-medium text-white">
+                  {structure.stripeDetailsSubmitted ? "Sì" : "No"}
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between gap-4">
+                <span className="text-neutral-400">Onboarding avviato</span>
+                <span className="font-medium text-white">
+                  {structure.stripeOnboardingStartedAt
+                    ? formatDate(structure.stripeOnboardingStartedAt)
+                    : "—"}
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between gap-4">
+                <span className="text-neutral-400">Onboarding completato</span>
+                <span className="font-medium text-white">
+                  {structure.stripeOnboardingCompletedAt
+                    ? formatDate(structure.stripeOnboardingCompletedAt)
+                    : "—"}
+                </span>
+              </div>
+            </div>
+
+            <div className="mt-5 flex flex-wrap gap-3">
+              <form action={startStructureStripeOnboarding}>
+                <input type="hidden" name="structureId" value={structure.id} />
+                <button
+                  type="submit"
+                  className="rounded-xl border border-neutral-700 px-4 py-3 text-sm font-medium text-neutral-200 transition hover:bg-neutral-800"
+                >
+                  {structure.stripeAccountId
+                    ? "Riprendi / aggiorna onboarding Stripe"
+                    : "Collega Stripe"}
+                </button>
+              </form>
+
+              <form action={refreshStructureStripeStatus}>
+                <input type="hidden" name="structureId" value={structure.id} />
+                <button
+                  type="submit"
+                  className="rounded-xl border border-neutral-700 px-4 py-3 text-sm font-medium text-neutral-200 transition hover:bg-neutral-800"
+                >
+                  Sincronizza stato Stripe
+                </button>
+              </form>
+            </div>
           </div>
         </section>
       </div>
+
+      <section className="mt-6 rounded-2xl border border-neutral-800 bg-neutral-900 p-6">
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-xl font-semibold text-white">Setup pagamenti</h2>
+        </div>
+
+        <div className="rounded-xl border border-neutral-800 bg-neutral-950 p-4">
+          <p className="text-sm text-neutral-400">
+            Stato attuale:{" "}
+            <span className="font-medium text-white">
+              {getPaymentSetupStatusLabel(structure.paymentSetupStatus)}
+            </span>
+          </p>
+
+          <form action={updateStructurePaymentSetupStatus} className="mt-4 space-y-4">
+            <input type="hidden" name="structureId" value={structure.id} />
+
+            <div>
+              <label
+                htmlFor="paymentSetupStatus"
+                className="mb-2 block text-sm font-medium text-neutral-300"
+              >
+                Cambia stato setup pagamenti
+              </label>
+              <select
+                id="paymentSetupStatus"
+                name="paymentSetupStatus"
+                defaultValue={structure.paymentSetupStatus}
+                className="w-full rounded-xl border border-neutral-700 bg-neutral-900 px-4 py-3 text-white outline-none transition focus:border-neutral-500"
+              >
+                <option value="not_configured">Non configurato</option>
+                <option value="pending">In attesa</option>
+                <option value="enabled">Abilitato</option>
+                <option value="blocked">Bloccato</option>
+              </select>
+            </div>
+
+            <button
+              type="submit"
+              className="rounded-xl border border-neutral-700 px-4 py-3 text-sm font-medium text-neutral-200 transition hover:bg-neutral-800"
+            >
+              Aggiorna stato pagamenti
+            </button>
+          </form>
+        </div>
+      </section>
 
       <section className="mt-6 rounded-2xl border border-neutral-800 bg-neutral-900 p-6">
         <div className="mb-4 flex items-center justify-between">
@@ -427,9 +563,7 @@ export default async function PlatformStructureDetailPage({
                   <div>
                     <p className="font-medium text-white">{getUserDisplayName(user)}</p>
                     <p className="mt-1 text-sm text-neutral-400">{user.email}</p>
-                    <p className="mt-2 text-sm text-neutral-500">
-                      Ruolo: {user.role}
-                    </p>
+                    <p className="mt-2 text-sm text-neutral-500">Ruolo: {user.role}</p>
                   </div>
 
                   <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center lg:items-end">
