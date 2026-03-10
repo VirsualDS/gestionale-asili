@@ -25,17 +25,24 @@ model PlatformUser {
 }
 
 model Structure {
-  id                 String             @id @default(cuid())
-  name               String
-  email              String?            @unique
-  phone              String?
-  address            String?
-  logoUrl            String?
-  accountStatus      String             @default("trial") // trial, active, suspended, cancelled
-  paymentSetupStatus PaymentSetupStatus @default(not_configured)
-  isActive           Boolean            @default(true)
-  createdAt          DateTime           @default(now())
-  updatedAt          DateTime           @updatedAt
+  id                        String             @id @default(cuid())
+  name                      String
+  email                     String?            @unique
+  phone                     String?
+  address                   String?
+  logoUrl                   String?
+  accountStatus             String             @default("trial") // trial, active, suspended, cancelled
+  paymentSetupStatus        PaymentSetupStatus @default(not_configured)
+  isActive                  Boolean            @default(true)
+  stripeAccountId           String?            @unique
+  stripeAccountStatus       String?            // pending, active, restricted, disabled
+  stripeChargesEnabled      Boolean            @default(false)
+  stripePayoutsEnabled      Boolean            @default(false)
+  stripeDetailsSubmitted    Boolean            @default(false)
+  stripeOnboardingStartedAt DateTime?
+  stripeOnboardingCompletedAt DateTime?
+  createdAt                 DateTime           @default(now())
+  updatedAt                 DateTime           @updatedAt
 
   users           StructureUser[]
   classes         ClassRoom[]
@@ -140,20 +147,25 @@ model AuthorizedPickupPerson {
 }
 
 model PaymentRequest {
-  id             String   @id @default(cuid())
-  structureId    String
-  childId        String
-  type           String   // monthly_fee, extra
-  title          String
-  description    String?
-  amount         Decimal  @db.Decimal(10, 2)
-  dueDate        DateTime?
-  status         String   @default("pending") // pending, paid, overdue, cancelled
-  publicToken    String   @unique @default(cuid())
-  publicLink     String?
-  groupKey       String?  // per collegare richieste nate da invio collettivo
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  id                      String   @id @default(cuid())
+  structureId             String
+  childId                 String
+  type                    String   // monthly_fee, extra
+  title                   String
+  description             String?
+  amount                  Decimal  @db.Decimal(10, 2)
+  dueDate                 DateTime?
+  status                  String   @default("pending") // pending, checkout_created, paid, overdue, cancelled, expired
+  publicToken             String   @unique @default(cuid())
+  publicLink              String?
+  groupKey                String?  // per collegare richieste nate da invio collettivo
+  stripeCheckoutSessionId String?  @unique
+  stripeCheckoutUrl       String?
+  stripeCheckoutExpiresAt DateTime?
+  lastPaymentAttemptAt    DateTime?
+  paidAt                  DateTime?
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
 
   structure Structure @relation(fields: [structureId], references: [id], onDelete: Cascade)
   child     Child     @relation(fields: [childId], references: [id], onDelete: Cascade)
@@ -164,19 +176,27 @@ model PaymentRequest {
   @@index([status])
   @@index([type])
   @@index([groupKey])
+  @@index([publicToken])
 }
 
 model Payment {
-  id               String   @id @default(cuid())
-  structureId      String
-  paymentRequestId String
-  amount           Decimal  @db.Decimal(10, 2)
-  status           String   @default("pending") // pending, paid, failed, refunded
-  provider         String?  // stripe, manual, ecc.
-  providerRef      String?
-  paidAt           DateTime?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  id                     String   @id @default(cuid())
+  structureId            String
+  paymentRequestId       String
+  amount                 Decimal  @db.Decimal(10, 2)
+  grossAmount            Decimal? @db.Decimal(10, 2)
+  applicationFeeAmount   Decimal? @db.Decimal(10, 2)
+  netAmountToStructure   Decimal? @db.Decimal(10, 2)
+  currency               String   @default("eur")
+  status                 String   @default("pending") // pending, paid, failed, refunded
+  provider               String?  // stripe, manual, ecc.
+  providerRef            String?
+  stripePaymentIntentId  String?  @unique
+  stripeChargeId         String?  @unique
+  stripeCheckoutSessionId String?
+  paidAt                 DateTime?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
 
   structure      Structure      @relation(fields: [structureId], references: [id], onDelete: Cascade)
   paymentRequest PaymentRequest @relation(fields: [paymentRequestId], references: [id], onDelete: Cascade)
@@ -184,4 +204,5 @@ model Payment {
   @@index([structureId])
   @@index([paymentRequestId])
   @@index([status])
+  @@index([stripeCheckoutSessionId])
 }
