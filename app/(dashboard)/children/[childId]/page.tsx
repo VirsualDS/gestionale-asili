@@ -1,7 +1,16 @@
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireStructureSession } from "@/lib/auth";
+import { ChildAlerts } from "./_components/ChildAlerts";
+import { ChildHeader } from "./_components/ChildHeader";
+import { ChildMainDetailsCard } from "./_components/ChildMainDetailsCard";
+import { ChildStatsCards } from "./_components/ChildStatsCards";
+import { GuardianFormCard } from "./_components/GuardianFormCard";
+import { GuardiansListCard } from "./_components/GuardiansListCard";
+import { PaymentHistoryCard } from "./_components/PaymentHistoryCard";
+import { PaymentRequestsCard } from "./_components/PaymentRequestsCard";
+import { PickupFormCard } from "./_components/PickupFormCard";
+import { PickupPeopleListCard } from "./_components/PickupPeopleListCard";
 
 export const dynamic = "force-dynamic";
 
@@ -47,96 +56,6 @@ async function getChildDetail(structureId: string, childId: string) {
       },
     },
   });
-}
-
-type ChildDetailData = NonNullable<Awaited<ReturnType<typeof getChildDetail>>>;
-type GuardianItem = ChildDetailData["guardians"][number];
-type AuthorizedPickupPersonItem = ChildDetailData["authorizedPickupPeople"][number];
-type PaymentRequestItem = ChildDetailData["paymentRequests"][number];
-type PaymentItem = PaymentRequestItem["payments"][number];
-
-function formatCurrency(value: string | number) {
-  const numericValue =
-    typeof value === "number" ? value : Number.parseFloat(String(value));
-
-  return new Intl.NumberFormat("it-IT", {
-    style: "currency",
-    currency: "EUR",
-  }).format(numericValue);
-}
-
-function formatDate(value?: Date | string | null) {
-  if (!value) {
-    return "—";
-  }
-
-  return new Date(value).toLocaleDateString("it-IT", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  });
-}
-
-function getPaymentRequestStatusLabel(status: string) {
-  switch (status) {
-    case "pending":
-      return "In attesa";
-    case "checkout_created":
-      return "Link generato";
-    case "paid":
-      return "Pagato";
-    case "overdue":
-      return "Scaduto";
-    case "cancelled":
-      return "Annullato";
-    case "expired":
-      return "Scaduto";
-    default:
-      return status;
-  }
-}
-
-function getPaymentRequestStatusClasses(status: string) {
-  switch (status) {
-    case "paid":
-      return "border-emerald-500/30 bg-emerald-500/10 text-emerald-300";
-    case "pending":
-    case "checkout_created":
-      return "border-amber-500/30 bg-amber-500/10 text-amber-300";
-    case "overdue":
-    case "cancelled":
-    case "expired":
-      return "border-red-500/30 bg-red-500/10 text-red-300";
-    default:
-      return "border-neutral-700 bg-neutral-800 text-neutral-300";
-  }
-}
-
-function getPaymentProviderLabel(provider?: string | null, providerRef?: string | null) {
-  if (provider === "stripe") {
-    return "Online Stripe";
-  }
-
-  if (provider === "manual") {
-    if (providerRef === "cash") return "Manuale · Contanti";
-    if (providerRef === "bank_transfer") return "Manuale · Bonifico";
-    if (providerRef === "pos") return "Manuale · POS";
-    return "Manuale";
-  }
-
-  return provider || "—";
-}
-
-function getPaymentProviderClasses(provider?: string | null) {
-  if (provider === "stripe") {
-    return "border-sky-500/30 bg-sky-500/10 text-sky-300";
-  }
-
-  if (provider === "manual") {
-    return "border-violet-500/30 bg-violet-500/10 text-violet-300";
-  }
-
-  return "border-neutral-700 bg-neutral-800 text-neutral-300";
 }
 
 async function addGuardian(formData: FormData) {
@@ -397,7 +316,8 @@ export default async function ChildDetailPage({
   } else if (qs?.error === "pickup-not-found") {
     errorMessage = "Persona autorizzata non trovata.";
   } else if (qs?.error === "child-has-payments") {
-    errorMessage = "Non puoi eliminare il bambino perché ha richieste di pagamento collegate.";
+    errorMessage =
+      "Non puoi eliminare il bambino perché ha richieste di pagamento collegate.";
   }
 
   const allPayments = child.paymentRequests
@@ -416,525 +336,66 @@ export default async function ChildDetailPage({
 
   return (
     <div>
-      <div className="mb-8">
-        <Link
-          href="/children"
-          className="text-sm text-neutral-400 transition hover:text-white"
-        >
-          ← Torna ai bambini
-        </Link>
+      <ChildHeader
+        childId={child.id}
+        fullName={`${child.firstName} ${child.lastName}`}
+        classRoomName={child.classRoom.name}
+        deleteChildAction={deleteChild}
+      />
 
-        <p className="mt-6 text-sm uppercase tracking-[0.2em] text-neutral-500">
-          Scheda bambino
-        </p>
-        <h1 className="mt-2 text-4xl font-bold">
-          {child.firstName} {child.lastName}
-        </h1>
-        <p className="mt-2 text-neutral-400">Classe: {child.classRoom.name}</p>
+      <ChildAlerts
+        successMessage={successMessage}
+        errorMessage={errorMessage}
+      />
 
-        <div className="mt-6 flex flex-wrap gap-3">
-          <Link
-            href={`/children/${child.id}/edit`}
-            className="rounded-xl border border-neutral-700 px-4 py-3 text-sm font-medium text-neutral-200 transition hover:bg-neutral-800"
-          >
-            Modifica bambino
-          </Link>
-
-          <form action={deleteChild}>
-            <input type="hidden" name="childId" value={child.id} />
-            <button
-              type="submit"
-              className="rounded-xl border border-red-900 bg-red-950/40 px-4 py-3 text-sm font-medium text-red-300 transition hover:bg-red-950/70"
-            >
-              Elimina bambino
-            </button>
-          </form>
-        </div>
-      </div>
-
-      {successMessage && (
-        <div className="mb-6 rounded-xl border border-emerald-900 bg-emerald-950/40 px-4 py-3 text-sm text-emerald-300">
-          {successMessage}
-        </div>
-      )}
-
-      {errorMessage && (
-        <div className="mb-6 rounded-xl border border-red-900 bg-red-950/40 px-4 py-3 text-sm text-red-300">
-          {errorMessage}
-        </div>
-      )}
-
-      <section className="grid gap-4 md:grid-cols-4 mb-8">
-        <div className="rounded-2xl border border-neutral-800 bg-neutral-900 p-6">
-          <p className="text-sm text-neutral-400">Stato</p>
-          <p className="mt-2 text-2xl font-semibold">{child.status}</p>
-        </div>
-
-        <div className="rounded-2xl border border-neutral-800 bg-neutral-900 p-6">
-          <p className="text-sm text-neutral-400">Retta mensile</p>
-          <p className="mt-2 text-2xl font-semibold">
-            {child.monthlyFee ? `${child.monthlyFee.toString()} €` : "—"}
-          </p>
-        </div>
-
-        <div className="rounded-2xl border border-neutral-800 bg-neutral-900 p-6">
-          <p className="text-sm text-neutral-400">Tutori</p>
-          <p className="mt-2 text-2xl font-semibold">{child.guardians.length}</p>
-        </div>
-
-        <div className="rounded-2xl border border-neutral-800 bg-neutral-900 p-6">
-          <p className="text-sm text-neutral-400">Autorizzati</p>
-          <p className="mt-2 text-2xl font-semibold">
-            {child.authorizedPickupPeople.length}
-          </p>
-        </div>
-      </section>
+      <ChildStatsCards
+        status={child.status}
+        monthlyFee={child.monthlyFee ? child.monthlyFee.toString() : null}
+        guardiansCount={child.guardians.length}
+        authorizedCount={child.authorizedPickupPeople.length}
+      />
 
       <div className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
-        <section className="rounded-2xl border border-neutral-800 bg-neutral-900 p-6">
-          <h2 className="mb-4 text-xl font-semibold">Dati principali</h2>
-
-          <div className="grid gap-4 md:grid-cols-2">
-            <div>
-              <p className="text-sm text-neutral-500">Nome</p>
-              <p className="mt-1 text-white">{child.firstName}</p>
-            </div>
-
-            <div>
-              <p className="text-sm text-neutral-500">Cognome</p>
-              <p className="mt-1 text-white">{child.lastName}</p>
-            </div>
-
-            <div>
-              <p className="text-sm text-neutral-500">Data di nascita</p>
-              <p className="mt-1 text-white">
-                {child.birthDate ? new Date(child.birthDate).toLocaleDateString("it-IT") : "—"}
-              </p>
-            </div>
-
-            <div>
-              <p className="text-sm text-neutral-500">Orario frequentato</p>
-              <p className="mt-1 text-white">{child.attendanceSchedule || "—"}</p>
-            </div>
-
-            <div className="md:col-span-2">
-              <p className="text-sm text-neutral-500">Residenza</p>
-              <p className="mt-1 text-white">{child.residence || "—"}</p>
-            </div>
-
-            <div className="md:col-span-2">
-              <p className="text-sm text-neutral-500">Allergie / intolleranze</p>
-              <p className="mt-1 whitespace-pre-wrap text-white">
-                {child.allergiesNotes || "—"}
-              </p>
-            </div>
-
-            <div className="md:col-span-2">
-              <p className="text-sm text-neutral-500">Note generali</p>
-              <p className="mt-1 whitespace-pre-wrap text-white">
-                {child.generalNotes || "—"}
-              </p>
-            </div>
-          </div>
-        </section>
+        <ChildMainDetailsCard
+          firstName={child.firstName}
+          lastName={child.lastName}
+          birthDate={child.birthDate}
+          attendanceSchedule={child.attendanceSchedule}
+          residence={child.residence}
+          allergiesNotes={child.allergiesNotes}
+          generalNotes={child.generalNotes}
+        />
 
         <section className="space-y-6">
-          <details className="rounded-2xl border border-neutral-800 bg-neutral-900 p-6">
-            <summary className="cursor-pointer list-none text-xl font-semibold text-white">
-              Aggiungi tutore
-            </summary>
+          <GuardianFormCard
+            childId={child.id}
+            addGuardianAction={addGuardian}
+          />
 
-            <form action={addGuardian} className="mt-5 space-y-4">
-              <input type="hidden" name="childId" value={child.id} />
-
-              <div>
-                <label
-                  htmlFor="guardian-firstName"
-                  className="mb-2 block text-sm font-medium text-neutral-300"
-                >
-                  Nome
-                </label>
-                <input
-                  id="guardian-firstName"
-                  name="firstName"
-                  type="text"
-                  required
-                  className="w-full rounded-xl border border-neutral-700 bg-neutral-950 px-4 py-3 text-white outline-none transition focus:border-neutral-500"
-                />
-              </div>
-
-              <div>
-                <label
-                  htmlFor="guardian-lastName"
-                  className="mb-2 block text-sm font-medium text-neutral-300"
-                >
-                  Cognome
-                </label>
-                <input
-                  id="guardian-lastName"
-                  name="lastName"
-                  type="text"
-                  className="w-full rounded-xl border border-neutral-700 bg-neutral-950 px-4 py-3 text-white outline-none transition focus:border-neutral-500"
-                />
-              </div>
-
-              <div>
-                <label
-                  htmlFor="guardian-phone"
-                  className="mb-2 block text-sm font-medium text-neutral-300"
-                >
-                  Telefono
-                </label>
-                <input
-                  id="guardian-phone"
-                  name="phone"
-                  type="text"
-                  className="w-full rounded-xl border border-neutral-700 bg-neutral-950 px-4 py-3 text-white outline-none transition focus:border-neutral-500"
-                />
-              </div>
-
-              <div>
-                <label
-                  htmlFor="guardian-email"
-                  className="mb-2 block text-sm font-medium text-neutral-300"
-                >
-                  Email
-                </label>
-                <input
-                  id="guardian-email"
-                  name="email"
-                  type="email"
-                  className="w-full rounded-xl border border-neutral-700 bg-neutral-950 px-4 py-3 text-white outline-none transition focus:border-neutral-500"
-                />
-              </div>
-
-              <div>
-                <label
-                  htmlFor="guardian-relationship"
-                  className="mb-2 block text-sm font-medium text-neutral-300"
-                >
-                  Relazione
-                </label>
-                <input
-                  id="guardian-relationship"
-                  name="relationship"
-                  type="text"
-                  placeholder="Es. madre, padre, tutore"
-                  className="w-full rounded-xl border border-neutral-700 bg-neutral-950 px-4 py-3 text-white outline-none transition focus:border-neutral-500"
-                />
-              </div>
-
-              <label className="flex items-center gap-3 text-sm text-neutral-300">
-                <input
-                  type="checkbox"
-                  name="isPrimaryContact"
-                  className="h-4 w-4 rounded border-neutral-700 bg-neutral-950"
-                />
-                Imposta come contatto principale
-              </label>
-
-              <button
-                type="submit"
-                className="w-full rounded-xl bg-white px-4 py-3 font-semibold text-black transition hover:bg-neutral-200"
-              >
-                Salva tutore
-              </button>
-            </form>
-          </details>
-
-          <details className="rounded-2xl border border-neutral-800 bg-neutral-900 p-6">
-            <summary className="cursor-pointer list-none text-xl font-semibold text-white">
-              Aggiungi autorizzato al ritiro
-            </summary>
-
-            <form action={addAuthorizedPickupPerson} className="mt-5 space-y-4">
-              <input type="hidden" name="childId" value={child.id} />
-
-              <div>
-                <label
-                  htmlFor="pickup-firstName"
-                  className="mb-2 block text-sm font-medium text-neutral-300"
-                >
-                  Nome
-                </label>
-                <input
-                  id="pickup-firstName"
-                  name="firstName"
-                  type="text"
-                  required
-                  className="w-full rounded-xl border border-neutral-700 bg-neutral-950 px-4 py-3 text-white outline-none transition focus:border-neutral-500"
-                />
-              </div>
-
-              <div>
-                <label
-                  htmlFor="pickup-lastName"
-                  className="mb-2 block text-sm font-medium text-neutral-300"
-                >
-                  Cognome
-                </label>
-                <input
-                  id="pickup-lastName"
-                  name="lastName"
-                  type="text"
-                  className="w-full rounded-xl border border-neutral-700 bg-neutral-950 px-4 py-3 text-white outline-none transition focus:border-neutral-500"
-                />
-              </div>
-
-              <div>
-                <label
-                  htmlFor="pickup-phone"
-                  className="mb-2 block text-sm font-medium text-neutral-300"
-                >
-                  Telefono
-                </label>
-                <input
-                  id="pickup-phone"
-                  name="phone"
-                  type="text"
-                  className="w-full rounded-xl border border-neutral-700 bg-neutral-950 px-4 py-3 text-white outline-none transition focus:border-neutral-500"
-                />
-              </div>
-
-              <div>
-                <label
-                  htmlFor="pickup-note"
-                  className="mb-2 block text-sm font-medium text-neutral-300"
-                >
-                  Nota
-                </label>
-                <textarea
-                  id="pickup-note"
-                  name="note"
-                  rows={3}
-                  className="w-full rounded-xl border border-neutral-700 bg-neutral-950 px-4 py-3 text-white outline-none transition focus:border-neutral-500"
-                />
-              </div>
-
-              <button
-                type="submit"
-                className="w-full rounded-xl border border-neutral-700 px-4 py-3 font-semibold text-neutral-200 transition hover:bg-neutral-800"
-              >
-                Salva autorizzato
-              </button>
-            </form>
-          </details>
+          <PickupFormCard
+            childId={child.id}
+            addAuthorizedPickupPersonAction={addAuthorizedPickupPerson}
+          />
         </section>
       </div>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-2">
-        <section className="rounded-2xl border border-neutral-800 bg-neutral-900 p-6">
-          <h2 className="mb-4 text-xl font-semibold">Tutori registrati</h2>
+        <GuardiansListCard
+          childId={child.id}
+          guardians={child.guardians}
+          deleteGuardianAction={deleteGuardian}
+        />
 
-          {child.guardians.length === 0 ? (
-            <p className="text-neutral-400">Nessun tutore registrato.</p>
-          ) : (
-            <div className="space-y-3">
-              {child.guardians.map((guardian: GuardianItem) => (
-                <div
-                  key={guardian.id}
-                  className="rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-3"
-                >
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <p className="font-medium text-white">
-                        {guardian.firstName} {guardian.lastName || ""}
-                      </p>
-                      <p className="mt-1 text-sm text-neutral-500">
-                        {guardian.relationship || "Relazione non specificata"}
-                      </p>
-                      <p className="mt-1 text-sm text-neutral-400">
-                        {guardian.phone || "Telefono non presente"}
-                      </p>
-                      <p className="mt-1 text-sm text-neutral-400">
-                        {guardian.email || "Email non presente"}
-                      </p>
-                    </div>
-
-                    <div className="flex flex-col items-end gap-2">
-                      {guardian.isPrimaryContact && (
-                        <span className="rounded-full border border-emerald-800 bg-emerald-950/40 px-3 py-1 text-xs font-medium text-emerald-300">
-                          Principale
-                        </span>
-                      )}
-
-                      <form action={deleteGuardian}>
-                        <input type="hidden" name="childId" value={child.id} />
-                        <input type="hidden" name="guardianId" value={guardian.id} />
-                        <button
-                          type="submit"
-                          className="rounded-lg border border-red-900 bg-red-950/40 px-3 py-2 text-xs font-medium text-red-300 transition hover:bg-red-950/70"
-                        >
-                          Elimina
-                        </button>
-                      </form>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </section>
-
-        <section className="rounded-2xl border border-neutral-800 bg-neutral-900 p-6">
-          <h2 className="mb-4 text-xl font-semibold">Autorizzati al ritiro</h2>
-
-          {child.authorizedPickupPeople.length === 0 ? (
-            <p className="text-neutral-400">Nessuna persona autorizzata registrata.</p>
-          ) : (
-            <div className="space-y-3">
-              {child.authorizedPickupPeople.map(
-                (person: AuthorizedPickupPersonItem) => (
-                  <div
-                    key={person.id}
-                    className="rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-3"
-                  >
-                    <div className="flex items-start justify-between gap-4">
-                      <div>
-                        <p className="font-medium text-white">
-                          {person.firstName} {person.lastName || ""}
-                        </p>
-                        <p className="mt-1 text-sm text-neutral-400">
-                          {person.phone || "Telefono non presente"}
-                        </p>
-                        <p className="mt-1 text-sm text-neutral-500">
-                          {person.note || "Nessuna nota"}
-                        </p>
-                      </div>
-
-                      <form action={deleteAuthorizedPickupPerson}>
-                        <input type="hidden" name="childId" value={child.id} />
-                        <input type="hidden" name="personId" value={person.id} />
-                        <button
-                          type="submit"
-                          className="rounded-lg border border-red-900 bg-red-950/40 px-3 py-2 text-xs font-medium text-red-300 transition hover:bg-red-950/70"
-                        >
-                          Elimina
-                        </button>
-                      </form>
-                    </div>
-                  </div>
-                )
-              )}
-            </div>
-          )}
-        </section>
+        <PickupPeopleListCard
+          childId={child.id}
+          people={child.authorizedPickupPeople}
+          deleteAuthorizedPickupPersonAction={deleteAuthorizedPickupPerson}
+        />
       </div>
 
-      <section className="mt-6 rounded-2xl border border-neutral-800 bg-neutral-900 p-6">
-        <h2 className="mb-4 text-xl font-semibold">Ultime richieste di pagamento</h2>
+      <PaymentRequestsCard paymentRequests={child.paymentRequests} />
 
-        {child.paymentRequests.length === 0 ? (
-          <p className="text-neutral-400">Nessuna richiesta presente.</p>
-        ) : (
-          <div className="space-y-3">
-            {child.paymentRequests.map((request: PaymentRequestItem) => (
-              <div
-                key={request.id}
-                className="rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-3"
-              >
-                <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                  <div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="font-medium text-white">{request.title}</p>
-                      <span
-                        className={`rounded-full border px-3 py-1 text-xs font-medium ${getPaymentRequestStatusClasses(
-                          request.status
-                        )}`}
-                      >
-                        {getPaymentRequestStatusLabel(request.status)}
-                      </span>
-                    </div>
-
-                    <p className="mt-2 text-sm text-neutral-500">
-                      Tipo: {request.type} · Creata il {formatDate(request.createdAt)}
-                    </p>
-
-                    {request.paidAt && (
-                      <p className="mt-1 text-sm text-neutral-500">
-                        Pagata il: {formatDate(request.paidAt)}
-                      </p>
-                    )}
-
-                    {request.payments.length > 0 && (
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {request.payments.map((payment) => (
-                          <span
-                            key={payment.id}
-                            className={`rounded-full border px-3 py-1 text-xs font-medium ${getPaymentProviderClasses(
-                              payment.provider
-                            )}`}
-                          >
-                            {getPaymentProviderLabel(payment.provider, payment.providerRef)}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="text-right">
-                    <p className="font-semibold text-white">
-                      {formatCurrency(request.amount.toString())}
-                    </p>
-                    <p className="mt-1 text-sm text-neutral-500">
-                      Pagamenti collegati: {request.payments.length}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
-
-      <section className="mt-6 rounded-2xl border border-neutral-800 bg-neutral-900 p-6">
-        <h2 className="mb-4 text-xl font-semibold">Storico incassi registrati</h2>
-
-        {allPayments.length === 0 ? (
-          <p className="text-neutral-400">Nessun incasso registrato.</p>
-        ) : (
-          <div className="space-y-3">
-            {allPayments.map((payment) => (
-              <div
-                key={payment.id}
-                className="rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-3"
-              >
-                <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                  <div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="font-medium text-white">{payment.requestTitle}</p>
-                      <span
-                        className={`rounded-full border px-3 py-1 text-xs font-medium ${getPaymentProviderClasses(
-                          payment.provider
-                        )}`}
-                      >
-                        {getPaymentProviderLabel(payment.provider, payment.providerRef)}
-                      </span>
-                    </div>
-
-                    <p className="mt-2 text-sm text-neutral-500">
-                      Stato richiesta collegata: {getPaymentRequestStatusLabel(payment.requestStatus)}
-                    </p>
-
-                    <p className="mt-1 text-sm text-neutral-500">
-                      Data incasso: {formatDate(payment.paidAt || payment.createdAt)}
-                    </p>
-                  </div>
-
-                  <div className="text-right">
-                    <p className="font-semibold text-white">
-                      {formatCurrency(payment.amount.toString())}
-                    </p>
-                    <p className="mt-1 text-sm text-neutral-500">
-                      Stato pagamento: {payment.status}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
+      <PaymentHistoryCard allPayments={allPayments} />
     </div>
   );
 }
