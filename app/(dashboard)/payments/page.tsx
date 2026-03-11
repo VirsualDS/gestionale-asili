@@ -68,10 +68,7 @@ async function getPaymentsPageData(structureId: string) {
                   paidAt: true,
                   amount: true,
                   payments: {
-                    orderBy: [
-                      { paidAt: "desc" },
-                      { createdAt: "desc" },
-                    ],
+                    orderBy: [{ paidAt: "desc" }, { createdAt: "desc" }],
                     take: 1,
                     select: {
                       id: true,
@@ -566,12 +563,16 @@ export default async function PaymentsPage({ searchParams }: PaymentsPageProps) 
           <div className="space-y-4">
             {filteredRows.map((row) => {
               const hasMonthlyFee = row.monthlyFee !== null;
-              const canGenerateLink = paymentsEnabled && hasMonthlyFee;
+              const isAlreadyPaid = row.latestRequest?.status === "paid";
+              const hasOpenRequest =
+                row.latestRequest?.status === "pending" ||
+                row.latestRequest?.status === "checkout_created";
+
+              const canGenerateLink = paymentsEnabled && hasMonthlyFee && !isAlreadyPaid && !hasOpenRequest;
+              const canRegisterManual = hasMonthlyFee && !isAlreadyPaid && !hasOpenRequest;
+
               const publicLink = row.latestRequest?.publicLink || null;
-              const canCancelRequest =
-                row.latestRequest &&
-                (row.latestRequest.status === "pending" ||
-                  row.latestRequest.status === "checkout_created");
+              const canCancelRequest = hasOpenRequest;
 
               const whatsappUrl =
                 row.latestRequest?.publicLink && hasMonthlyFee
@@ -651,6 +652,18 @@ export default async function PaymentsPage({ searchParams }: PaymentsPageProps) 
                       {!hasMonthlyFee && (
                         <div className="mt-4 rounded-lg border border-red-900 bg-red-950/30 px-3 py-2 text-sm text-red-200">
                           Prima di generare un link o registrare pagamenti, imposta la retta mensile nella scheda del bambino.
+                        </div>
+                      )}
+
+                      {isAlreadyPaid && (
+                        <div className="mt-4 rounded-lg border border-emerald-900 bg-emerald-950/30 px-3 py-2 text-sm text-emerald-200">
+                          Questa retta risulta già saldata. I pulsanti sono bloccati per evitare doppi incassi.
+                        </div>
+                      )}
+
+                      {hasOpenRequest && (
+                        <div className="mt-4 rounded-lg border border-amber-900 bg-amber-950/30 px-3 py-2 text-sm text-amber-200">
+                          Esiste già una richiesta aperta. Puoi aprirla, condividerla o annullarla prima di registrare un nuovo pagamento.
                         </div>
                       )}
 
@@ -738,10 +751,10 @@ export default async function PaymentsPage({ searchParams }: PaymentsPageProps) 
                             <input type="hidden" name="method" value="cash" />
                             <button
                               type="submit"
-                              disabled={!hasMonthlyFee}
+                              disabled={!canRegisterManual}
                               className="rounded-xl border border-neutral-700 px-4 py-3 text-sm font-medium text-neutral-200 transition enabled:hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-40"
                             >
-                              Registra contanti
+                              Contanti
                             </button>
                           </form>
 
@@ -750,10 +763,10 @@ export default async function PaymentsPage({ searchParams }: PaymentsPageProps) 
                             <input type="hidden" name="method" value="bank_transfer" />
                             <button
                               type="submit"
-                              disabled={!hasMonthlyFee}
+                              disabled={!canRegisterManual}
                               className="rounded-xl border border-neutral-700 px-4 py-3 text-sm font-medium text-neutral-200 transition enabled:hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-40"
                             >
-                              Registra bonifico
+                              Bonifico
                             </button>
                           </form>
 
@@ -762,10 +775,10 @@ export default async function PaymentsPage({ searchParams }: PaymentsPageProps) 
                             <input type="hidden" name="method" value="pos" />
                             <button
                               type="submit"
-                              disabled={!hasMonthlyFee}
+                              disabled={!canRegisterManual}
                               className="rounded-xl border border-neutral-700 px-4 py-3 text-sm font-medium text-neutral-200 transition enabled:hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-40"
                             >
-                              Registra POS
+                              POS
                             </button>
                           </form>
                         </div>

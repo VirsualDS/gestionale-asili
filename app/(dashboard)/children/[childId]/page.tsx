@@ -32,6 +32,11 @@ async function getChildDetail(structureId: string, childId: string) {
       paymentRequests: {
         orderBy: [{ createdAt: "desc" }],
         take: 10,
+        include: {
+          payments: {
+            orderBy: [{ paidAt: "desc" }, { createdAt: "desc" }],
+          },
+        },
       },
       _count: {
         select: {
@@ -48,6 +53,91 @@ type ChildDetailData = NonNullable<Awaited<ReturnType<typeof getChildDetail>>>;
 type GuardianItem = ChildDetailData["guardians"][number];
 type AuthorizedPickupPersonItem = ChildDetailData["authorizedPickupPeople"][number];
 type PaymentRequestItem = ChildDetailData["paymentRequests"][number];
+type PaymentItem = PaymentRequestItem["payments"][number];
+
+function formatCurrency(value: string | number) {
+  const numericValue =
+    typeof value === "number" ? value : Number.parseFloat(String(value));
+
+  return new Intl.NumberFormat("it-IT", {
+    style: "currency",
+    currency: "EUR",
+  }).format(numericValue);
+}
+
+function formatDate(value?: Date | string | null) {
+  if (!value) {
+    return "—";
+  }
+
+  return new Date(value).toLocaleDateString("it-IT", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
+}
+
+function getPaymentRequestStatusLabel(status: string) {
+  switch (status) {
+    case "pending":
+      return "In attesa";
+    case "checkout_created":
+      return "Link generato";
+    case "paid":
+      return "Pagato";
+    case "overdue":
+      return "Scaduto";
+    case "cancelled":
+      return "Annullato";
+    case "expired":
+      return "Scaduto";
+    default:
+      return status;
+  }
+}
+
+function getPaymentRequestStatusClasses(status: string) {
+  switch (status) {
+    case "paid":
+      return "border-emerald-500/30 bg-emerald-500/10 text-emerald-300";
+    case "pending":
+    case "checkout_created":
+      return "border-amber-500/30 bg-amber-500/10 text-amber-300";
+    case "overdue":
+    case "cancelled":
+    case "expired":
+      return "border-red-500/30 bg-red-500/10 text-red-300";
+    default:
+      return "border-neutral-700 bg-neutral-800 text-neutral-300";
+  }
+}
+
+function getPaymentProviderLabel(provider?: string | null, providerRef?: string | null) {
+  if (provider === "stripe") {
+    return "Online Stripe";
+  }
+
+  if (provider === "manual") {
+    if (providerRef === "cash") return "Manuale · Contanti";
+    if (providerRef === "bank_transfer") return "Manuale · Bonifico";
+    if (providerRef === "pos") return "Manuale · POS";
+    return "Manuale";
+  }
+
+  return provider || "—";
+}
+
+function getPaymentProviderClasses(provider?: string | null) {
+  if (provider === "stripe") {
+    return "border-sky-500/30 bg-sky-500/10 text-sky-300";
+  }
+
+  if (provider === "manual") {
+    return "border-violet-500/30 bg-violet-500/10 text-violet-300";
+  }
+
+  return "border-neutral-700 bg-neutral-800 text-neutral-300";
+}
 
 async function addGuardian(formData: FormData) {
   "use server";
@@ -310,6 +400,20 @@ export default async function ChildDetailPage({
     errorMessage = "Non puoi eliminare il bambino perché ha richieste di pagamento collegate.";
   }
 
+  const allPayments = child.paymentRequests
+    .flatMap((request) =>
+      request.payments.map((payment) => ({
+        ...payment,
+        requestTitle: request.title,
+        requestStatus: request.status,
+      }))
+    )
+    .sort((a, b) => {
+      const aTime = new Date(a.paidAt || a.createdAt).getTime();
+      const bTime = new Date(b.paidAt || b.createdAt).getTime();
+      return bTime - aTime;
+    });
+
   return (
     <div>
       <div className="mb-8">
@@ -435,10 +539,12 @@ export default async function ChildDetailPage({
         </section>
 
         <section className="space-y-6">
-          <div className="rounded-2xl border border-neutral-800 bg-neutral-900 p-6">
-            <h2 className="mb-4 text-xl font-semibold">Aggiungi tutore</h2>
+          <details className="rounded-2xl border border-neutral-800 bg-neutral-900 p-6">
+            <summary className="cursor-pointer list-none text-xl font-semibold text-white">
+              Aggiungi tutore
+            </summary>
 
-            <form action={addGuardian} className="space-y-4">
+            <form action={addGuardian} className="mt-5 space-y-4">
               <input type="hidden" name="childId" value={child.id} />
 
               <div>
@@ -534,12 +640,14 @@ export default async function ChildDetailPage({
                 Salva tutore
               </button>
             </form>
-          </div>
+          </details>
 
-          <div className="rounded-2xl border border-neutral-800 bg-neutral-900 p-6">
-            <h2 className="mb-4 text-xl font-semibold">Aggiungi autorizzato al ritiro</h2>
+          <details className="rounded-2xl border border-neutral-800 bg-neutral-900 p-6">
+            <summary className="cursor-pointer list-none text-xl font-semibold text-white">
+              Aggiungi autorizzato al ritiro
+            </summary>
 
-            <form action={addAuthorizedPickupPerson} className="space-y-4">
+            <form action={addAuthorizedPickupPerson} className="mt-5 space-y-4">
               <input type="hidden" name="childId" value={child.id} />
 
               <div>
@@ -610,7 +718,7 @@ export default async function ChildDetailPage({
                 Salva autorizzato
               </button>
             </form>
-          </div>
+          </details>
         </section>
       </div>
 
@@ -723,19 +831,104 @@ export default async function ChildDetailPage({
             {child.paymentRequests.map((request: PaymentRequestItem) => (
               <div
                 key={request.id}
-                className="flex items-center justify-between rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-3"
+                className="rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-3"
               >
-                <div>
-                  <p className="font-medium text-white">{request.title}</p>
-                  <p className="mt-1 text-sm text-neutral-500">
-                    Tipo: {request.type} · Stato: {request.status}
-                  </p>
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="font-medium text-white">{request.title}</p>
+                      <span
+                        className={`rounded-full border px-3 py-1 text-xs font-medium ${getPaymentRequestStatusClasses(
+                          request.status
+                        )}`}
+                      >
+                        {getPaymentRequestStatusLabel(request.status)}
+                      </span>
+                    </div>
+
+                    <p className="mt-2 text-sm text-neutral-500">
+                      Tipo: {request.type} · Creata il {formatDate(request.createdAt)}
+                    </p>
+
+                    {request.paidAt && (
+                      <p className="mt-1 text-sm text-neutral-500">
+                        Pagata il: {formatDate(request.paidAt)}
+                      </p>
+                    )}
+
+                    {request.payments.length > 0 && (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {request.payments.map((payment) => (
+                          <span
+                            key={payment.id}
+                            className={`rounded-full border px-3 py-1 text-xs font-medium ${getPaymentProviderClasses(
+                              payment.provider
+                            )}`}
+                          >
+                            {getPaymentProviderLabel(payment.provider, payment.providerRef)}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="text-right">
+                    <p className="font-semibold text-white">
+                      {formatCurrency(request.amount.toString())}
+                    </p>
+                    <p className="mt-1 text-sm text-neutral-500">
+                      Pagamenti collegati: {request.payments.length}
+                    </p>
+                  </div>
                 </div>
-                <div className="text-right">
-                  <p className="font-semibold text-white">{request.amount.toString()} €</p>
-                  <p className="mt-1 text-sm text-neutral-500">
-                    {new Date(request.createdAt).toLocaleDateString("it-IT")}
-                  </p>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section className="mt-6 rounded-2xl border border-neutral-800 bg-neutral-900 p-6">
+        <h2 className="mb-4 text-xl font-semibold">Storico incassi registrati</h2>
+
+        {allPayments.length === 0 ? (
+          <p className="text-neutral-400">Nessun incasso registrato.</p>
+        ) : (
+          <div className="space-y-3">
+            {allPayments.map((payment) => (
+              <div
+                key={payment.id}
+                className="rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-3"
+              >
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="font-medium text-white">{payment.requestTitle}</p>
+                      <span
+                        className={`rounded-full border px-3 py-1 text-xs font-medium ${getPaymentProviderClasses(
+                          payment.provider
+                        )}`}
+                      >
+                        {getPaymentProviderLabel(payment.provider, payment.providerRef)}
+                      </span>
+                    </div>
+
+                    <p className="mt-2 text-sm text-neutral-500">
+                      Stato richiesta collegata: {getPaymentRequestStatusLabel(payment.requestStatus)}
+                    </p>
+
+                    <p className="mt-1 text-sm text-neutral-500">
+                      Data incasso: {formatDate(payment.paidAt || payment.createdAt)}
+                    </p>
+                  </div>
+
+                  <div className="text-right">
+                    <p className="font-semibold text-white">
+                      {formatCurrency(payment.amount.toString())}
+                    </p>
+                    <p className="mt-1 text-sm text-neutral-500">
+                      Stato pagamento: {payment.status}
+                    </p>
+                  </div>
                 </div>
               </div>
             ))}
